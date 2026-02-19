@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+release/
+
+# Electron compiled files
+electron/*.js
+electron/*.js.map
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Recordings temp
+recordings/
+
+# SQLite
+*.sqlite
+*.sqlite3

@@ -18,6 +18,13 @@ import {
   getSetting,
   setSetting,
 } from "./db";
+import {
+  getDesktopSources,
+  startCapture,
+  writeAudioChunk,
+  stopCapture,
+  getRecordingState,
+} from "./audio-capture";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -128,15 +135,26 @@ ipcMain.handle("save-recipe", async (_event, data) => {
   return saveRecipe(data);
 });
 
-// Recording stubs (Task 6)
-ipcMain.handle("start-recording", async () => {
-  // TODO: implement audio capture in Task 6
-  return { success: true };
+// Recording — Audio Capture
+ipcMain.handle("get-desktop-sources", async () => {
+  return getDesktopSources();
+});
+
+ipcMain.handle("start-recording", async (_event, meetingId: string) => {
+  return startCapture(meetingId);
+});
+
+ipcMain.handle("write-audio-chunk", async (_event, data: number[]) => {
+  const buffer = Buffer.from(data);
+  return writeAudioChunk(buffer);
 });
 
 ipcMain.handle("stop-recording", async () => {
-  // TODO: implement audio capture in Task 6
-  return { success: true };
+  return stopCapture();
+});
+
+ipcMain.handle("get-recording-state", async () => {
+  return getRecordingState();
 });
 
 // ── App Lifecycle ────────────────────────────────────────────────────────────

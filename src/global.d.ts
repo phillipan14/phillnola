@@ -25,8 +25,17 @@ declare global {
         save: (data: unknown) => Promise<unknown>;
       };
       recording: {
-        start: () => Promise<{ success: boolean }>;
-        stop: () => Promise<{ success: boolean }>;
+        getDesktopSources: () => Promise<
+          { id: string; name: string; thumbnailDataUrl: string }[]
+        >;
+        start: (meetingId: string) => Promise<{ success: boolean; recordingsDir: string }>;
+        writeChunk: (data: number[]) => Promise<{ path: string; index: number } | null>;
+        stop: () => Promise<{ chunkPaths: string[] }>;
+        getState: () => Promise<{
+          isRecording: boolean;
+          meetingId: string | null;
+          chunkCount: number;
+        }>;
       };
     };
   }

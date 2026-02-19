@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useSettings } from "./hooks/useSettings";
+import { useRecording } from "./hooks/useRecording";
 import Onboarding from "./screens/Onboarding";
 import Settings from "./screens/Settings";
 import Editor from "./components/Editor";
 import type { EditorHandle } from "./components/Editor";
+import RecordingBar from "./components/RecordingBar";
 
 /* ── Mock Data ─────────────────────────────────────────────────────── */
 
@@ -135,11 +137,25 @@ function DancingBars({ playing = true, color = "var(--color-success)" }: { playi
 
 export default function App() {
   const { settings, loading, saveSetting, isOnboarded } = useSettings();
+  const { startRecording, stopRecording, isRecording, elapsed, audioLevel, error: recordingError } = useRecording();
   const [selectedMeeting, setSelectedMeeting] = useState<string>("1");
-  const [isRecording, setIsRecording] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const editorRef = useRef<EditorHandle>(null);
+
+  const handleToggleRecording = useCallback(async () => {
+    if (isRecording) {
+      const chunkPaths = await stopRecording();
+      console.log("Recording stopped. Chunks:", chunkPaths);
+    } else if (selectedMeeting) {
+      await startRecording(selectedMeeting);
+    }
+  }, [isRecording, selectedMeeting, startRecording, stopRecording]);
+
+  const handleStopRecording = useCallback(async () => {
+    const chunkPaths = await stopRecording();
+    console.log("Recording stopped. Chunks:", chunkPaths);
+  }, [stopRecording]);
 
   const activeMeeting = MOCK_MEETINGS.flatMap((g) => g.meetings).find(
     (m) => m.id === selectedMeeting
@@ -373,36 +389,43 @@ export default function App() {
 
               {/* Recording Bar */}
               {isRecording && (
+                <RecordingBar
+                  elapsed={elapsed}
+                  audioLevel={audioLevel}
+                  onStop={handleStopRecording}
+                />
+              )}
+
+              {/* Recording Error */}
+              {recordingError && (
                 <div
-                  className="recording-bar flex items-center justify-between px-5 py-2.5"
+                  className="px-5 py-2 text-[12px]"
+                  style={{ color: "var(--color-recording)", backgroundColor: "var(--color-recording-bg)" }}
+                >
+                  {recordingError}
+                </div>
+              )}
+
+              {/* Start Recording button when not recording */}
+              {!isRecording && activeMeeting && (
+                <div
+                  className="flex items-center justify-center px-5 py-2"
                   style={{
                     borderTop: "1px solid var(--color-border)",
                     backgroundColor: "var(--color-bg-secondary)",
                   }}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="recording-dot" />
-                    <span className="text-[13px] font-medium" style={{ color: "var(--color-recording)" }}>
-                      Recording
-                    </span>
-                    <span className="font-mono-timestamp" style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-                      12:34
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-5">
-                    <DancingBars />
-                    <button
-                      onClick={() => setIsRecording(false)}
-                      className="stop-btn flex items-center gap-1.5 text-[12px] font-medium px-3.5 py-1.5 rounded-full"
-                      style={{ backgroundColor: "var(--color-recording)", color: "#fff" }}
-                    >
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="4" y="4" width="16" height="16" rx="3" />
-                      </svg>
-                      Stop
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleToggleRecording}
+                    className="btn btn-ghost no-drag text-[12px] gap-1.5 px-3 py-1.5"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="var(--color-recording)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    </svg>
+                    <span style={{ color: "var(--color-text-secondary)" }}>Start Recording</span>
+                  </button>
                 </div>
               )}
             </>

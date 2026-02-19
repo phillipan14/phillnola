@@ -26,8 +26,18 @@ const phillnolaApi = {
     save: (data: unknown): Promise<unknown> => ipcRenderer.invoke("save-recipe", data),
   },
   recording: {
-    start: (): Promise<{ success: boolean }> => ipcRenderer.invoke("start-recording"),
-    stop: (): Promise<{ success: boolean }> => ipcRenderer.invoke("stop-recording"),
+    getDesktopSources: (): Promise<{ id: string; name: string; thumbnailDataUrl: string }[]> =>
+      ipcRenderer.invoke("get-desktop-sources"),
+    start: (meetingId: string): Promise<{ success: boolean; recordingsDir: string }> =>
+      ipcRenderer.invoke("start-recording", meetingId),
+    writeChunk: (data: number[]): Promise<{ path: string; index: number } | null> =>
+      ipcRenderer.invoke("write-audio-chunk", data),
+    stop: (): Promise<{ chunkPaths: string[] }> => ipcRenderer.invoke("stop-recording"),
+    getState: (): Promise<{
+      isRecording: boolean;
+      meetingId: string | null;
+      chunkCount: number;
+    }> => ipcRenderer.invoke("get-recording-state"),
   },
 };
 

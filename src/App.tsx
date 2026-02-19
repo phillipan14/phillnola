@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useSettings } from "./hooks/useSettings";
 import Onboarding from "./screens/Onboarding";
 import Settings from "./screens/Settings";
+import Editor from "./components/Editor";
+import type { EditorHandle } from "./components/Editor";
 
 /* ── Mock Data ─────────────────────────────────────────────────────── */
 
@@ -137,6 +139,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const editorRef = useRef<EditorHandle>(null);
 
   const activeMeeting = MOCK_MEETINGS.flatMap((g) => g.meetings).find(
     (m) => m.id === selectedMeeting
@@ -358,81 +361,13 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Notes Area */}
+              {/* Notes Area — TipTap Editor */}
               <div className="flex-1 overflow-y-auto">
-                <div className="px-10 lg:px-16 py-8 max-w-[720px]">
-                  {/* Your notes section */}
-                  <div className="mb-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] mb-3"
-                      style={{ color: "var(--color-text-muted)" }}>
-                      Your Notes
-                    </div>
-                    <ul className="space-y-1">
-                      <li className="note-bullet" style={{ color: "var(--color-text-primary)" }}>
-                        Need to finalize Q1 OKRs by Friday
-                      </li>
-                      <li className="note-bullet" style={{ color: "var(--color-text-primary)" }}>
-                        Jack mentioned new lead scoring model
-                      </li>
-                      <li className="note-bullet" style={{ color: "var(--color-text-primary)" }}>
-                        Mudit pushing onboarding redesign to next sprint
-                      </li>
-                    </ul>
-                  </div>
-
-                  {/* Editable area */}
-                  <div
-                    className="editor-content mt-3 mb-10"
-                    contentEditable
-                    suppressContentEditableWarning
-                    data-placeholder="Keep typing..."
-                    style={{ minHeight: 40, fontSize: 15 }}
+                <div className="px-10 lg:px-16 py-6 max-w-[720px]">
+                  <Editor
+                    ref={editorRef}
+                    meetingId={activeMeeting.id}
                   />
-
-                  {/* AI-Enhanced Notes */}
-                  <div className="ai-section pt-6" style={{ borderTop: "1px solid var(--color-border-light)" }}>
-                    <div className="flex items-center gap-2.5 mb-5">
-                      <DancingBars playing={false} />
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-                        style={{ color: "var(--color-ai-text)" }}>
-                        AI-Enhanced Notes
-                      </span>
-                    </div>
-
-                    {/* Summary */}
-                    <div className="mb-6">
-                      <h3 className="ai-heading">Summary</h3>
-                      <p className="ai-paragraph">
-                        The team reviewed Q1 objectives and agreed to finalize OKRs by end of week. Jack presented the new lead scoring model, which will be tested on 100 accounts. Mudit proposed deferring the onboarding redesign to Sprint 4.
-                      </p>
-                    </div>
-
-                    {/* Action Items */}
-                    <div className="mb-6">
-                      <h3 className="ai-heading">Action Items</h3>
-                      <ul className="space-y-1.5">
-                        <li className="ai-bullet">
-                          <strong style={{ color: "var(--color-text-secondary)" }}>Phillip</strong> — Finalize Q1 OKRs and share with team by Friday
-                        </li>
-                        <li className="ai-bullet">
-                          <strong style={{ color: "var(--color-text-secondary)" }}>Jack</strong> — Run lead scoring pilot on 100 accounts, report results by next sync
-                        </li>
-                        <li className="ai-bullet">
-                          <strong style={{ color: "var(--color-text-secondary)" }}>Mudit</strong> — Draft onboarding redesign spec for Sprint 4 backlog
-                        </li>
-                      </ul>
-                    </div>
-
-                    {/* Key Decisions */}
-                    <div className="mb-6">
-                      <h3 className="ai-heading">Key Decisions</h3>
-                      <ul className="space-y-1.5">
-                        <li className="ai-bullet">
-                          Onboarding redesign deferred to Sprint 4 to prioritize lead scoring improvements
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
                 </div>
               </div>
 

@@ -341,6 +341,204 @@ select {
   background-position: right 8px center;
 }
 
+/* ── TipTap Editor ───────────────────────────────────────────────── */
+
+.phillnola-editor {
+  outline: none;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 1.7;
+  caret-color: var(--color-accent);
+}
+
+/* Placeholder */
+.phillnola-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--color-text-placeholder);
+  pointer-events: none;
+  height: 0;
+  font-style: normal;
+}
+
+/* Paragraphs */
+.phillnola-editor p {
+  margin-bottom: 0.15em;
+}
+
+/* Headings */
+.phillnola-editor h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+.phillnola-editor h2 {
+  font-size: 1.25em;
+  font-weight: 650;
+  margin-top: 0.8em;
+  margin-bottom: 0.3em;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+}
+
+.phillnola-editor h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-top: 0.6em;
+  margin-bottom: 0.25em;
+  line-height: 1.4;
+  color: var(--color-text-primary);
+}
+
+/* Lists */
+.phillnola-editor ul,
+.phillnola-editor ol {
+  padding-left: 1.4em;
+  margin-bottom: 0.3em;
+}
+
+.phillnola-editor li {
+  margin-bottom: 0.1em;
+}
+
+.phillnola-editor li p {
+  margin-bottom: 0;
+}
+
+/* Bullet list markers */
+.phillnola-editor ul > li {
+  list-style-type: disc;
+}
+
+.phillnola-editor ul > li::marker {
+  color: var(--color-text-muted);
+  font-size: 0.7em;
+}
+
+/* Task list */
+.phillnola-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.phillnola-editor ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.phillnola-editor ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.phillnola-editor ul[data-type="taskList"] li > label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  background-color: transparent;
+}
+
+.phillnola-editor ul[data-type="taskList"] li > label input[type="checkbox"]:hover {
+  border-color: var(--color-accent);
+}
+
+.phillnola-editor ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.phillnola-editor ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.phillnola-editor ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.phillnola-editor ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Code */
+.phillnola-editor code {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+  font-size: 0.88em;
+  background-color: var(--color-bg-hover);
+  color: var(--color-accent);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+/* Code block */
+.phillnola-editor pre {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.phillnola-editor pre code {
+  background: none;
+  color: var(--color-text-primary);
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+/* Blockquote */
+.phillnola-editor blockquote {
+  border-left: 3px solid var(--color-border);
+  margin: 8px 0;
+  padding-left: 16px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Horizontal rule */
+.phillnola-editor hr {
+  border: none;
+  border-top: 1px solid var(--color-border-light);
+  margin: 16px 0;
+}
+
+/* Bold / Italic */
+.phillnola-editor strong {
+  font-weight: 650;
+}
+
+.phillnola-editor em {
+  font-style: italic;
+}
+
+/* Selection */
+.phillnola-editor ::selection {
+  background-color: var(--color-accent-subtle);
+}
+
 /* ── Spinner ─────────────────────────────────────────────────────── */
 
 @keyframes spin {

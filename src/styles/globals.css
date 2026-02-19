@@ -1,40 +1,57 @@
 @import "tailwindcss";
 
-/* ── Theme Variables ────────────────────────────────────────────────────── */
+/* ── Theme Variables (Granola-inspired: warm, clean, native macOS) ───── */
 
 :root {
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f5f5f4;
-  --color-bg-sidebar: #fafaf9;
-  --color-bg-hover: #f0f0ee;
-  --color-text-primary: #1c1917;
-  --color-text-secondary: #78716c;
-  --color-text-muted: #a8a29e;
-  --color-border: #e7e5e4;
-  --color-accent: #d97706;
-  --color-accent-light: #fef3c7;
-  --color-accent-hover: #b45309;
-  --color-recording: #ef4444;
+  --color-bg-secondary: #fafafa;
+  --color-bg-sidebar: #f7f7f5;
+  --color-bg-hover: #f0efed;
+  --color-bg-active: #eae8e4;
+  --color-bg-elevated: #ffffff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-muted: #9a9a9a;
+  --color-text-placeholder: #c4c4c4;
+  --color-border: #e8e8e6;
+  --color-border-light: #f0efed;
+  --color-accent: #c2742f;
+  --color-accent-subtle: #faf5f0;
+  --color-accent-hover: #a85f20;
+  --color-recording: #e5484d;
+  --color-recording-bg: #fff0f0;
+  --color-success: #30a46c;
+  --color-ai-text: #9a9a9a;
+  --color-shadow: rgba(0, 0, 0, 0.04);
+  --sidebar-width: 260px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg-primary: #1c1917;
-    --color-bg-secondary: #292524;
-    --color-bg-sidebar: #1c1917;
-    --color-bg-hover: #292524;
-    --color-text-primary: #fafaf9;
-    --color-text-secondary: #a8a29e;
-    --color-text-muted: #78716c;
-    --color-border: #44403c;
-    --color-accent: #f59e0b;
-    --color-accent-light: #451a03;
-    --color-accent-hover: #fbbf24;
-    --color-recording: #f87171;
+    --color-bg-primary: #191919;
+    --color-bg-secondary: #1f1f1f;
+    --color-bg-sidebar: #1a1a1a;
+    --color-bg-hover: #262626;
+    --color-bg-active: #2e2e2e;
+    --color-bg-elevated: #222222;
+    --color-text-primary: #ececec;
+    --color-text-secondary: #999999;
+    --color-text-muted: #666666;
+    --color-text-placeholder: #4a4a4a;
+    --color-border: #2e2e2e;
+    --color-border-light: #262626;
+    --color-accent: #d4863d;
+    --color-accent-subtle: #2a2118;
+    --color-accent-hover: #e09548;
+    --color-recording: #e5484d;
+    --color-recording-bg: #2a1516;
+    --color-success: #3dd68c;
+    --color-ai-text: #666666;
+    --color-shadow: rgba(0, 0, 0, 0.2);
   }
 }
 
-/* ── Base Styles ────────────────────────────────────────────────────────── */
+/* ── Base Styles ────────────────────────────────────────────────────── */
 
 * {
   margin: 0;
@@ -49,16 +66,17 @@ html, body, #root {
 }
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    system-ui, sans-serif;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-/* ── Custom Scrollbar ───────────────────────────────────────────────────── */
+/* ── Custom Scrollbar ──────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
   width: 6px;
@@ -70,15 +88,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-text-muted);
+  background: transparent;
   border-radius: 3px;
+  transition: background 0.2s;
 }
 
+*:hover > ::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
+  background: var(--color-text-muted);
 }
 
-/* ── Drag Region (macOS titlebar) ───────────────────────────────────────── */
+/* ── Drag Region (macOS titlebar) ─────────────────────────────────── */
 
 .drag-region {
   -webkit-app-region: drag;
@@ -88,10 +108,235 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* ── Monospace for timestamps ───────────────────────────────────────────── */
+/* ── Typography ───────────────────────────────────────────────────── */
 
 .font-mono-timestamp {
   font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: -0.02em;
+}
+
+/* ── Sidebar Meeting Item ─────────────────────────────────────────── */
+
+.meeting-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.meeting-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.meeting-item.active {
+  background-color: var(--color-bg-active);
+}
+
+/* ── Editor Styles ────────────────────────────────────────────────── */
+
+.editor-content {
+  outline: none;
+  min-height: 200px;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-placeholder);
+  pointer-events: none;
+}
+
+.editor-content p {
+  margin-bottom: 0.25em;
+}
+
+.editor-content ul, .editor-content ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.ai-text {
+  color: var(--color-ai-text);
+}
+
+/* ── Recording Pulse ──────────────────────────────────────────────── */
+
+@keyframes recording-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-recording);
+  animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Dancing Bars (Granola-style audio visualizer) ─────────────────── */
+
+@keyframes bar-dance-1 { 0%,100%{height:4px} 50%{height:16px} }
+@keyframes bar-dance-2 { 0%,100%{height:8px} 50%{height:20px} }
+@keyframes bar-dance-3 { 0%,100%{height:12px} 50%{height:6px} }
+@keyframes bar-dance-4 { 0%,100%{height:6px} 50%{height:18px} }
+
+.dancing-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+}
+
+.dancing-bars .bar {
+  width: 3px;
+  border-radius: 1.5px;
+  background-color: var(--color-success);
+}
+
+.dancing-bars .bar:nth-child(1) { animation: bar-dance-1 0.8s ease-in-out infinite; }
+.dancing-bars .bar:nth-child(2) { animation: bar-dance-2 0.7s ease-in-out infinite 0.1s; }
+.dancing-bars .bar:nth-child(3) { animation: bar-dance-3 0.9s ease-in-out infinite 0.2s; }
+.dancing-bars .bar:nth-child(4) { animation: bar-dance-4 0.6s ease-in-out infinite 0.15s; }
+.dancing-bars .bar:nth-child(5) { animation: bar-dance-1 0.75s ease-in-out infinite 0.25s; }
+
+/* ── Buttons ──────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  outline: none;
+}
+
+.btn-primary {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.btn-ghost:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+/* ── Note Bullets (user notes) ────────────────────────────────────── */
+
+.note-bullet {
+  position: relative;
+  padding-left: 16px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.note-bullet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--color-text-primary);
+  opacity: 0.25;
+}
+
+/* ── AI Notes Styles ─────────────────────────────────────────────── */
+
+.ai-heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ai-text);
+  margin-bottom: 8px;
+}
+
+.ai-paragraph {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--color-ai-text);
+}
+
+.ai-bullet {
+  position: relative;
+  padding-left: 16px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--color-ai-text);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.ai-bullet:hover {
+  color: var(--color-text-secondary);
+}
+
+.ai-bullet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--color-ai-text);
+  opacity: 0.5;
+}
+
+/* ── Stop Button ──────────────────────────────────────────────────── */
+
+.stop-btn {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.stop-btn:hover {
+  opacity: 0.85;
+}
+
+/* ── Transitions ──────────────────────────────────────────────────── */
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Input Focus ──────────────────────────────────────────────────── */
+
+input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
 }

@@ -25,6 +25,8 @@ import {
   stopCapture,
   getRecordingState,
 } from "./audio-capture";
+import { transcribeChunks } from "./transcribe";
+import { structureNotes } from "./ai-structure";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -156,6 +158,71 @@ ipcMain.handle("stop-recording", async () => {
 ipcMain.handle("get-recording-state", async () => {
   return getRecordingState();
 });
+
+// Transcription — Whisper
+ipcMain.handle("transcribe", async (_event, chunkPaths: string[]) => {
+  const apiKey = getSetting("openai_api_key");
+  if (!apiKey) {
+    throw new Error("OpenAI API key not configured. Please add it in Settings.");
+  }
+  return transcribeChunks(chunkPaths, apiKey, mainWindow);
+});
+
+// AI Note Structuring
+ipcMain.handle(
+  "structure-notes",
+  async (
+    _event,
+    params: {
+      meetingId: string;
+      transcript: string;
+      userNotes: string;
+      recipeId?: string;
+    },
+  ) => {
+    const { meetingId, transcript, userNotes, recipeId } = params;
+
+    // Get API keys and provider preference from settings
+    const openaiKey = getSetting("openai_api_key");
+    const anthropicKey = getSetting("anthropic_api_key");
+    const provider = (getSetting("ai_provider") || "openai") as "openai" | "anthropic";
+
+    // Get recipe system prompt
+    let systemPrompt =
+      "Produce structured meeting notes with: Summary, Key Decisions, Action Items, and Discussion Points.";
+
+    if (recipeId) {
+      const recipe = getRecipe(recipeId);
+      if (recipe) {
+        systemPrompt = recipe.system_prompt;
+      }
+    } else {
+      // Try to find default recipe
+      const recipes = getRecipes();
+      const defaultRecipe = recipes.find((r) => r.is_default === 1);
+      if (defaultRecipe) {
+        systemPrompt = defaultRecipe.system_prompt;
+      }
+    }
+
+    const structured = await structureNotes({
+      transcript,
+      userNotes,
+      recipe: { system_prompt: systemPrompt },
+      provider,
+      openaiKey,
+      anthropicKey,
+    });
+
+    // Save AI output and transcript to the notes table
+    saveNotes(meetingId, {
+      transcript_text: transcript,
+      ai_output: structured,
+    });
+
+    return structured;
+  },
+);
 
 // ── App Lifecycle ────────────────────────────────────────────────────────────
 

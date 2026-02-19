@@ -37,6 +37,18 @@ declare global {
           chunkCount: number;
         }>;
       };
+      ai: {
+        transcribe: (chunkPaths: string[]) => Promise<string>;
+        structureNotes: (params: {
+          meetingId: string;
+          transcript: string;
+          userNotes: string;
+          recipeId?: string;
+        }) => Promise<string>;
+        onTranscribeProgress: (
+          callback: (progress: { completed: number; total: number; stage: string }) => void,
+        ) => () => void;
+      };
     };
   }
 }

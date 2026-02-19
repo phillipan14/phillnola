@@ -39,6 +39,28 @@ const phillnolaApi = {
       chunkCount: number;
     }> => ipcRenderer.invoke("get-recording-state"),
   },
+  ai: {
+    transcribe: (chunkPaths: string[]): Promise<string> =>
+      ipcRenderer.invoke("transcribe", chunkPaths),
+    structureNotes: (params: {
+      meetingId: string;
+      transcript: string;
+      userNotes: string;
+      recipeId?: string;
+    }): Promise<string> => ipcRenderer.invoke("structure-notes", params),
+    onTranscribeProgress: (
+      callback: (progress: { completed: number; total: number; stage: string }) => void,
+    ): (() => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        progress: { completed: number; total: number; stage: string },
+      ) => callback(progress);
+      ipcRenderer.on("transcribe-progress", handler);
+      return () => {
+        ipcRenderer.removeListener("transcribe-progress", handler);
+      };
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld("phillnola", phillnolaApi);

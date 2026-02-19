@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useSettings } from "./hooks/useSettings";
 import { useRecording } from "./hooks/useRecording";
 import Onboarding from "./screens/Onboarding";
@@ -6,6 +6,8 @@ import Settings from "./screens/Settings";
 import Editor from "./components/Editor";
 import type { EditorHandle } from "./components/Editor";
 import RecordingBar from "./components/RecordingBar";
+import ProcessingOverlay from "./components/ProcessingOverlay";
+import type { ProcessingStage } from "./components/ProcessingOverlay";
 
 /* ── Mock Data ─────────────────────────────────────────────────────── */
 
@@ -133,6 +135,28 @@ function DancingBars({ playing = true, color = "var(--color-success)" }: { playi
   );
 }
 
+/* ── Markdown to HTML (lightweight) ────────────────────────────────── */
+
+function markdownToHtml(md: string): string {
+  return md
+    // Headers
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    // Bold and italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Unordered list items
+    .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
+    // Wrap consecutive <li> in <ul>
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>")
+    // Paragraphs: wrap lines that aren't already wrapped in tags
+    .replace(/^(?!<[hulo])((?!<).+)$/gm, "<p>$1</p>")
+    // Clean up extra newlines
+    .replace(/\n{2,}/g, "\n");
+}
+
 /* ── App ───────────────────────────────────────────────────────────── */
 
 export default function App() {
@@ -143,19 +167,107 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const editorRef = useRef<EditorHandle>(null);
 
+  // Processing state
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<ProcessingStage>("transcribing");
+  const [chunksCompleted, setChunksCompleted] = useState(0);
+  const [chunksTotal, setChunksTotal] = useState(0);
+  const processingCancelledRef = useRef(false);
+
+  // Listen for transcription progress events from main process
+  useEffect(() => {
+    const unsubscribe = window.phillnola.ai.onTranscribeProgress((progress) => {
+      setChunksCompleted(progress.completed);
+      setChunksTotal(progress.total);
+    });
+    return unsubscribe;
+  }, []);
+
+  /**
+   * End-to-end flow: Stop Recording -> Transcribe -> Structure -> Insert
+   */
+  const handleStopAndProcess = useCallback(async () => {
+    if (!selectedMeeting) return;
+
+    processingCancelledRef.current = false;
+
+    // 1. Stop recording and get chunk paths
+    const chunkPaths = await stopRecording();
+    console.log("Recording stopped. Chunks:", chunkPaths);
+
+    if (chunkPaths.length === 0) {
+      console.log("No audio chunks recorded, skipping transcription.");
+      return;
+    }
+
+    // Start processing overlay
+    setIsProcessing(true);
+    setProcessingStage("transcribing");
+    setChunksCompleted(0);
+    setChunksTotal(chunkPaths.length);
+
+    try {
+      // 2. Transcribe audio chunks
+      const transcript = await window.phillnola.ai.transcribe(chunkPaths);
+
+      if (processingCancelledRef.current) return;
+      if (!transcript.trim()) {
+        console.log("Transcription returned empty, skipping structuring.");
+        setIsProcessing(false);
+        return;
+      }
+
+      // 3. Structure notes with AI
+      setProcessingStage("structuring");
+      const userNotes = editorRef.current?.getPlainText() || "";
+
+      const structured = await window.phillnola.ai.structureNotes({
+        meetingId: selectedMeeting,
+        transcript,
+        userNotes,
+      });
+
+      if (processingCancelledRef.current) return;
+
+      // 4. Insert structured output into editor
+      if (structured && editorRef.current) {
+        // Add a divider and the AI output
+        const aiHtml = `
+          <hr />
+          <h2>AI-Structured Notes</h2>
+          ${markdownToHtml(structured)}
+        `;
+        editorRef.current.insertAIOutput(aiHtml);
+      }
+
+      // 5. Show done state briefly
+      setProcessingStage("done");
+      setTimeout(() => {
+        setIsProcessing(false);
+      }, 1500);
+    } catch (err) {
+      console.error("Processing failed:", err);
+      setIsProcessing(false);
+      // Could add error toast here
+    }
+  }, [selectedMeeting, stopRecording]);
+
+  const handleCancelProcessing = useCallback(() => {
+    processingCancelledRef.current = true;
+    setIsProcessing(false);
+  }, []);
+
   const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
-      const chunkPaths = await stopRecording();
-      console.log("Recording stopped. Chunks:", chunkPaths);
+      await handleStopAndProcess();
     } else if (selectedMeeting) {
       await startRecording(selectedMeeting);
     }
-  }, [isRecording, selectedMeeting, startRecording, stopRecording]);
+  }, [isRecording, selectedMeeting, startRecording, handleStopAndProcess]);
 
   const handleStopRecording = useCallback(async () => {
-    const chunkPaths = await stopRecording();
-    console.log("Recording stopped. Chunks:", chunkPaths);
-  }, [stopRecording]);
+    await handleStopAndProcess();
+  }, [handleStopAndProcess]);
 
   const activeMeeting = MOCK_MEETINGS.flatMap((g) => g.meetings).find(
     (m) => m.id === selectedMeeting
@@ -378,13 +490,23 @@ export default function App() {
               </div>
 
               {/* Notes Area — TipTap Editor */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto" style={{ position: "relative" }}>
                 <div className="px-10 lg:px-16 py-6 max-w-[720px]">
                   <Editor
                     ref={editorRef}
                     meetingId={activeMeeting.id}
                   />
                 </div>
+
+                {/* Processing Overlay */}
+                {isProcessing && (
+                  <ProcessingOverlay
+                    stage={processingStage}
+                    chunksCompleted={chunksCompleted}
+                    chunksTotal={chunksTotal}
+                    onCancel={handleCancelProcessing}
+                  />
+                )}
               </div>
 
               {/* Recording Bar */}

@@ -5,7 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "npm run build:electron && concurrently -n vite,electron \"vite --config vite.config.ts\" \"wait-on http://localhost:5173 && electron .\"",
-    "build:electron": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --outdir=electron --external:electron --external:better-sqlite3 --format=cjs",
+    "build:electron": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --outdir=electron --external:electron --external:better-sqlite3 --external:openai --external:@anthropic-ai/sdk --format=cjs",
     "build": "npm run build:electron && vite build --config vite.config.ts",
     "start": "npm run build:electron && electron .",
     "typecheck": "tsc --noEmit"
@@ -21,6 +21,7 @@
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.77.0",
     "@tailwindcss/vite": "^4.2.0",
     "@tiptap/extension-heading": "^3.20.0",
     "@tiptap/extension-placeholder": "^3.20.0",
@@ -33,6 +34,7 @@
     "better-sqlite3": "^12.6.2",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
+    "openai": "^6.22.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.0",

@@ -93,22 +93,14 @@ export function useRecording(): UseRecordingReturn {
           throw new Error("No screen sources available for audio capture");
         }
 
-        // 3. Capture system audio via desktopCapturer
-        // Electron requires requesting both audio and video for desktop capture,
-        // but we only need the audio track.
+        // 3. Capture system audio
+        // Try getDisplayMedia first (modern Electron 28+), fall back to getUserMedia
         let systemStream: MediaStream | null = null;
         try {
-          systemStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              mandatory: {
-                chromeMediaSource: "desktop",
-              },
-            } as unknown as MediaTrackConstraints,
-            video: {
-              mandatory: {
-                chromeMediaSource: "desktop",
-              },
-            } as unknown as MediaTrackConstraints,
+          // Modern approach: getDisplayMedia with audio (Electron handles via setDisplayMediaRequestHandler)
+          systemStream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: true, // Required by spec but we'll discard the video track
           });
           // Remove video tracks — we only want audio
           systemStream.getVideoTracks().forEach((track) => {
@@ -116,7 +108,27 @@ export function useRecording(): UseRecordingReturn {
             systemStream!.removeTrack(track);
           });
         } catch {
-          console.warn("System audio capture not available, using microphone only");
+          // Fallback: try the legacy Electron desktopCapturer approach
+          try {
+            systemStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                mandatory: {
+                  chromeMediaSource: "desktop",
+                },
+              } as unknown as MediaTrackConstraints,
+              video: {
+                mandatory: {
+                  chromeMediaSource: "desktop",
+                },
+              } as unknown as MediaTrackConstraints,
+            });
+            systemStream.getVideoTracks().forEach((track) => {
+              track.stop();
+              systemStream!.removeTrack(track);
+            });
+          } catch {
+            console.warn("System audio capture not available, using microphone only");
+          }
         }
 
         // 4. Capture microphone

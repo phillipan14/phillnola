@@ -27,7 +27,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg-primary: #191919;
     --color-bg-secondary: #1f1f1f;
     --color-bg-sidebar: #1a1a1a;
@@ -49,6 +49,54 @@
     --color-ai-text: #666666;
     --color-shadow: rgba(0, 0, 0, 0.2);
   }
+}
+
+/* ── Explicit theme overrides (data-theme attribute) ──────────────── */
+
+[data-theme="light"] {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #fafafa;
+  --color-bg-sidebar: #f7f7f5;
+  --color-bg-hover: #f0efed;
+  --color-bg-active: #eae8e4;
+  --color-bg-elevated: #ffffff;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-muted: #9a9a9a;
+  --color-text-placeholder: #c4c4c4;
+  --color-border: #e8e8e6;
+  --color-border-light: #f0efed;
+  --color-accent: #c2742f;
+  --color-accent-subtle: #faf5f0;
+  --color-accent-hover: #a85f20;
+  --color-recording: #e5484d;
+  --color-recording-bg: #fff0f0;
+  --color-success: #30a46c;
+  --color-ai-text: #9a9a9a;
+  --color-shadow: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] {
+  --color-bg-primary: #191919;
+  --color-bg-secondary: #1f1f1f;
+  --color-bg-sidebar: #1a1a1a;
+  --color-bg-hover: #262626;
+  --color-bg-active: #2e2e2e;
+  --color-bg-elevated: #222222;
+  --color-text-primary: #ececec;
+  --color-text-secondary: #999999;
+  --color-text-muted: #666666;
+  --color-text-placeholder: #4a4a4a;
+  --color-border: #2e2e2e;
+  --color-border-light: #262626;
+  --color-accent: #d4863d;
+  --color-accent-subtle: #2a2118;
+  --color-accent-hover: #e09548;
+  --color-recording: #e5484d;
+  --color-recording-bg: #2a1516;
+  --color-success: #3dd68c;
+  --color-ai-text: #666666;
+  --color-shadow: rgba(0, 0, 0, 0.2);
 }
 
 /* ── Base Styles ────────────────────────────────────────────────────── */
@@ -73,7 +121,27 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
+}
+
+/* ── Global Input & Interactive Styles ────────────────────────────── */
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+  outline: none;
+}
+
+input, select, textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+button {
+  transition: all 0.15s ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /* ── Custom Scrollbar ──────────────────────────────────────────────── */
@@ -121,9 +189,9 @@ body {
 .meeting-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -143,7 +211,7 @@ body {
   min-height: 200px;
   color: var(--color-text-primary);
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 .editor-content:empty::before {
@@ -211,10 +279,10 @@ body {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -225,10 +293,12 @@ body {
 .btn-primary {
   background-color: var(--color-accent);
   color: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary:hover {
   background-color: var(--color-accent-hover);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
 }
 
 .btn-ghost {
@@ -311,11 +381,12 @@ body {
   border: none;
   outline: none;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: all 0.15s;
 }
 
 .stop-btn:hover {
   opacity: 0.85;
+  box-shadow: 0 2px 8px rgba(229, 72, 77, 0.3);
 }
 
 /* ── Transitions ──────────────────────────────────────────────────── */
@@ -338,7 +409,7 @@ input::placeholder {
 select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 12px center;
 }
 
 /* ── TipTap Editor ───────────────────────────────────────────────── */
@@ -537,6 +608,41 @@ select {
 /* Selection */
 .phillnola-editor ::selection {
   background-color: var(--color-accent-subtle);
+}
+
+/* ── Theme Transition ─────────────────────────────────────────────── */
+
+body,
+.sidebar,
+.meeting-item,
+.btn,
+.search-box,
+.phillnola-editor,
+main {
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* ── Meeting Slide-in Animation ──────────────────────────────────── */
+
+@keyframes meetingSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.meeting-slide-in {
+  animation: meetingSlideIn 0.2s ease-out both;
+}
+
+/* ── Copied Tooltip Fade ─────────────────────────────────────────── */
+
+.copied-tooltip {
+  animation: fadeIn 0.15s ease-out;
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────── */

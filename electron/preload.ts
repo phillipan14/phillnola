@@ -61,6 +61,28 @@ const phillnolaApi = {
       };
     },
   },
+  calendar: {
+    auth: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke("google-auth"),
+    getEvents: (daysAhead?: number): Promise<{
+      id: string;
+      title: string;
+      start: string;
+      end: string;
+      attendees: string[];
+      meetLink?: string;
+    }[]> => ipcRenderer.invoke("google-calendar-events", daysAhead),
+    isConnected: (): Promise<boolean> => ipcRenderer.invoke("google-is-connected"),
+    disconnect: (): Promise<{ success: boolean }> => ipcRenderer.invoke("google-disconnect"),
+  },
+  // Events from main process (tray, etc.)
+  on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
+    ipcRenderer.on(channel, handler);
+    return () => {
+      ipcRenderer.removeListener(channel, handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("phillnola", phillnolaApi);

@@ -105,9 +105,44 @@ export function useEditorInstance({ meetingId, onSaveStatus }: UseEditorOptions)
         // Only apply if still the same meeting
         if (currentMeetingIdRef.current !== meetingId) return;
 
-        const noteData = note as { content?: string } | null;
+        const noteData = note as {
+          content?: string;
+          transcript_text?: string;
+          ai_output?: string;
+        } | null;
+
         if (noteData?.content) {
           editor.commands.setContent(noteData.content);
+
+          // If there's a transcript that isn't already in the editor content,
+          // append it so the user can always see the full transcript
+          if (
+            noteData.transcript_text?.trim() &&
+            !noteData.content.includes("Transcript")
+          ) {
+            const transcriptParagraphs = noteData.transcript_text
+              .split("\n")
+              .filter((line: string) => line.trim())
+              .map((line: string) => `<p>${line}</p>`)
+              .join("");
+            const transcriptHtml = `<hr /><h2>Transcript</h2>${transcriptParagraphs}`;
+
+            // Also append AI output if it exists and isn't in the content
+            let aiHtml = "";
+            if (
+              noteData.ai_output?.trim() &&
+              !noteData.content.includes("AI-Structured Notes")
+            ) {
+              aiHtml = `<hr /><h2>AI-Structured Notes</h2>${noteData.ai_output
+                .split("\n")
+                .filter((line: string) => line.trim())
+                .map((line: string) => `<p>${line}</p>`)
+                .join("")}`;
+            }
+
+            editor.commands.focus("end");
+            editor.commands.insertContent(transcriptHtml + aiHtml);
+          }
         } else {
           editor.commands.clearContent();
         }

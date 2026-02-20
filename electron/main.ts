@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, desktopCapturer, ipcMain, session, Tray, Menu, nativeImage } from "electron";
 import path from "path";
 import {
   initDatabase,
@@ -27,8 +27,15 @@ import {
 } from "./audio-capture";
 import { transcribeChunks } from "./transcribe";
 import { structureNotes } from "./ai-structure";
+import {
+  startGoogleAuth,
+  fetchCalendarEvents,
+  isGoogleConnected,
+  disconnectGoogle,
+} from "./google-calendar";
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 const isDev = !app.isPackaged;
 
@@ -47,6 +54,35 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Grant media permissions (microphone, screen capture) automatically
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed = ["media", "mediaKeySystem", "display-capture", "audioCapture"];
+    callback(allowed.includes(permission));
+  });
+
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    const allowed = ["media", "mediaKeySystem", "display-capture", "audioCapture"];
+    return allowed.includes(permission);
+  });
+
+  // Handle display media requests (system audio capture) for Electron 28+
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    if (mainWindow) {
+      // Grant access to the entire screen for audio capture
+      desktopCapturer
+        .getSources({ types: ["screen"] })
+        .then((sources: Electron.DesktopCapturerSource[]) => {
+          if (sources.length > 0) {
+            callback({ video: sources[0], audio: "loopback" });
+          } else {
+            callback({});
+          }
+        });
+    } else {
+      callback({});
+    }
   });
 
   // Set Content Security Policy for production
@@ -161,7 +197,7 @@ ipcMain.handle("get-recording-state", async () => {
 
 // Transcription — Whisper
 ipcMain.handle("transcribe", async (_event, chunkPaths: string[]) => {
-  const apiKey = getSetting("openai_api_key");
+  const apiKey = getSetting("openai_key");
   if (!apiKey) {
     throw new Error("OpenAI API key not configured. Please add it in Settings.");
   }
@@ -183,8 +219,8 @@ ipcMain.handle(
     const { meetingId, transcript, userNotes, recipeId } = params;
 
     // Get API keys and provider preference from settings
-    const openaiKey = getSetting("openai_api_key");
-    const anthropicKey = getSetting("anthropic_api_key");
+    const openaiKey = getSetting("openai_key");
+    const anthropicKey = getSetting("anthropic_key");
     const provider = (getSetting("ai_provider") || "openai") as "openai" | "anthropic";
 
     // Get recipe system prompt
@@ -224,15 +260,123 @@ ipcMain.handle(
   },
 );
 
+// Google Calendar
+ipcMain.handle("google-auth", async () => {
+  return startGoogleAuth();
+});
+
+ipcMain.handle("google-calendar-events", async (_event, daysAhead?: number) => {
+  return fetchCalendarEvents(daysAhead);
+});
+
+ipcMain.handle("google-is-connected", async () => {
+  return isGoogleConnected();
+});
+
+ipcMain.handle("google-disconnect", async () => {
+  disconnectGoogle();
+  return { success: true };
+});
+
+// ── System Tray ──────────────────────────────────────────────────────────────
+
+function createTray(): void {
+  // Create a 16x16 template image for macOS menu bar
+  const icon = nativeImage.createFromDataURL(
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA" +
+    "gklEQVQ4T2NkoBAwUqifYdAb8P/ff4b/DP8ZGBgYGBiZ/jMwMjIyMDL+Z2BkYmRgZPrP" +
+    "wMTCxMDEzMzAzMLMwMzKwsDCxsrAys7GwMbBzsDOyc7AycXJwMXNxcDNw83Aw8fDwMvP" +
+    "y8Anwi/AJyQkKCAsIiIoIi4mJiohKSElLSMjK6+goAAAHhkjES3EQPAAAAAASUVORK5CYII="
+  );
+  icon.setTemplateImage(true);
+
+  tray = new Tray(icon);
+  tray.setToolTip("Phillnola");
+
+  updateTrayMenu();
+
+  tray.on("click", () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.focus();
+      } else {
+        mainWindow.show();
+      }
+    } else {
+      createWindow();
+    }
+  });
+}
+
+function updateTrayMenu(): void {
+  if (!tray) return;
+
+  const recentMeetings = getMeetings().slice(0, 5);
+
+  const recentItems: Electron.MenuItemConstructorOptions[] = recentMeetings.map((m) => ({
+    label: m.title,
+    click: () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send("navigate-meeting", m.id);
+      }
+    },
+  }));
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show Phillnola",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createWindow();
+        }
+      },
+    },
+    { type: "separator" },
+    ...(recentItems.length > 0
+      ? [
+          { label: "Recent Meetings", enabled: false } as Electron.MenuItemConstructorOptions,
+          ...recentItems,
+          { type: "separator" as const },
+        ]
+      : []),
+    {
+      label: "New Meeting",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.webContents.send("new-meeting");
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit Phillnola",
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+}
+
 // ── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   // Initialize the database before creating the window
   initDatabase();
   createWindow();
+  createTray();
 });
 
 app.on("window-all-closed", () => {
+  // On macOS, keep app alive in tray
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -246,4 +390,8 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   closeDatabase();
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 });

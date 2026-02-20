@@ -178,14 +178,14 @@ function StepIndicator({
   current: number;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       {Array.from({ length: total }, (_, i) => (
         <div
           key={i}
           className="rounded-full transition-all duration-300"
           style={{
-            width: i === current ? 24 : 8,
-            height: 8,
+            width: i === current ? 28 : 10,
+            height: 10,
             backgroundColor:
               i === current
                 ? "var(--color-accent)"
@@ -218,7 +218,17 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
   // Step 2: AI provider
   const [provider, setProvider] = useState<AiProvider>("openai");
 
-  // Step 3: Google Calendar (placeholder)
+  // Step 3: Google Calendar
+  const [googleClientId, setGoogleClientId] = useState("");
+  const [googleClientSecret, setGoogleClientSecret] = useState("");
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarStatus, setCalendarStatus] = useState<
+    "idle" | "connecting" | "ok" | "fail"
+  >("idle");
+
+  useEffect(() => {
+    window.phillnola.calendar.isConnected().then(setCalendarConnected);
+  }, []);
 
   // Step 4: Default recipe
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -255,6 +265,20 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
       await saveSetting("anthropic_key", anthropicKey.trim());
     }
   }, [anthropicKey, saveSetting]);
+
+  const handleConnectGoogle = useCallback(async () => {
+    if (!googleClientId.trim() || !googleClientSecret.trim()) return;
+    setCalendarStatus("connecting");
+    await saveSetting("google_client_id", googleClientId.trim());
+    await saveSetting("google_client_secret", googleClientSecret.trim());
+    const result = await window.phillnola.calendar.auth();
+    if (result.success) {
+      setCalendarStatus("ok");
+      setCalendarConnected(true);
+    } else {
+      setCalendarStatus("fail");
+    }
+  }, [googleClientId, googleClientSecret, saveSetting]);
 
   /* ── Navigation ─────────────────────────────────────────────────── */
 
@@ -304,9 +328,9 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
       case 0:
         return (
           <div className="fade-in">
-            <div className="mb-2">
+            <div className="mb-4">
               <span
-                className="inline-block text-[11px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full"
+                className="inline-block text-[11px] font-semibold uppercase tracking-[0.1em] px-3 py-1.5 rounded-full"
                 style={{
                   backgroundColor: "var(--color-accent-subtle)",
                   color: "var(--color-accent)",
@@ -316,13 +340,13 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               </span>
             </div>
             <h1
-              className="text-[28px] font-semibold leading-tight mb-2"
+              className="text-[32px] font-bold leading-tight mb-4"
               style={{ color: "var(--color-text-primary)" }}
             >
               Welcome to Phillnola
             </h1>
             <p
-              className="text-[15px] mb-8 leading-relaxed"
+              className="text-[16px] mb-12 leading-relaxed"
               style={{ color: "var(--color-text-secondary)" }}
             >
               Your AI meeting notepad. No bots joining your calls, no data
@@ -330,19 +354,19 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             </p>
 
             <label
-              className="block text-[13px] font-medium mb-2"
+              className="block text-[14px] font-medium mb-2"
               style={{ color: "var(--color-text-primary)" }}
             >
               OpenAI API Key
             </label>
             <p
-              className="text-[13px] mb-3"
+              className="text-[13px] mb-5"
               style={{ color: "var(--color-text-muted)" }}
             >
               Used for transcription and note structuring. Your key stays on
               this device.
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <input
                 type="password"
                 value={openaiKey}
@@ -354,10 +378,10 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                   if (e.key === "Enter") handleValidateOpenAI();
                 }}
                 placeholder="sk-..."
-                className="flex-1 px-3 py-2.5 rounded-lg text-[14px] outline-none transition-all"
+                className="flex-1 px-4 py-3 rounded-xl text-[15px] outline-none transition-all"
                 style={{
                   backgroundColor: "var(--color-bg-secondary)",
-                  border: `1px solid ${
+                  border: `1.5px solid ${
                     openaiStatus === "valid"
                       ? "var(--color-success)"
                       : openaiStatus === "invalid"
@@ -367,23 +391,24 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                   color: "var(--color-text-primary)",
                 }}
               />
-              <StatusIcon status={openaiStatus} />
+              {openaiKey.trim() && openaiStatus === "idle" && (
+                <button
+                  onClick={handleValidateOpenAI}
+                  className="shrink-0 text-[13px] font-semibold px-5 py-3 rounded-xl transition-all"
+                  style={{
+                    backgroundColor: "var(--color-accent)",
+                    color: "#fff",
+                    boxShadow: "0 2px 8px rgba(194, 116, 47, 0.25)",
+                  }}
+                >
+                  Validate
+                </button>
+              )}
+              {openaiStatus !== "idle" && <StatusIcon status={openaiStatus} />}
             </div>
-            {openaiKey.trim() && openaiStatus === "idle" && (
-              <button
-                onClick={handleValidateOpenAI}
-                className="mt-3 text-[13px] font-medium px-4 py-2 rounded-lg transition-colors"
-                style={{
-                  backgroundColor: "var(--color-accent)",
-                  color: "#fff",
-                }}
-              >
-                Validate Key
-              </button>
-            )}
             {openaiStatus === "invalid" && (
               <p
-                className="mt-2 text-[13px]"
+                className="mt-3 text-[13px] flex items-center gap-1.5"
                 style={{ color: "var(--color-recording)" }}
               >
                 Invalid API key. Please check and try again.
@@ -391,7 +416,7 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             )}
             {openaiStatus === "valid" && (
               <p
-                className="mt-2 text-[13px]"
+                className="mt-3 text-[13px] flex items-center gap-1.5"
                 style={{ color: "var(--color-success)" }}
               >
                 Key validated successfully.
@@ -404,9 +429,9 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
       case 1:
         return (
           <div className="fade-in">
-            <div className="mb-2">
+            <div className="mb-4">
               <span
-                className="inline-block text-[11px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full"
+                className="inline-block text-[11px] font-semibold uppercase tracking-[0.1em] px-3 py-1.5 rounded-full"
                 style={{
                   backgroundColor: "var(--color-accent-subtle)",
                   color: "var(--color-accent)",
@@ -416,13 +441,13 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               </span>
             </div>
             <h1
-              className="text-[28px] font-semibold leading-tight mb-2"
+              className="text-[32px] font-bold leading-tight mb-4"
               style={{ color: "var(--color-text-primary)" }}
             >
               Add Claude (Optional)
             </h1>
             <p
-              className="text-[15px] mb-8 leading-relaxed"
+              className="text-[16px] mb-12 leading-relaxed"
               style={{ color: "var(--color-text-secondary)" }}
             >
               Add an Anthropic API key to use Claude for note structuring.
@@ -430,12 +455,12 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             </p>
 
             <label
-              className="block text-[13px] font-medium mb-2"
+              className="block text-[14px] font-medium mb-5"
               style={{ color: "var(--color-text-primary)" }}
             >
               Anthropic API Key
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <input
                 type="password"
                 value={anthropicKey}
@@ -447,10 +472,10 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                   if (e.key === "Enter") handleValidateAnthropic();
                 }}
                 placeholder="sk-ant-..."
-                className="flex-1 px-3 py-2.5 rounded-lg text-[14px] outline-none transition-all"
+                className="flex-1 px-4 py-3 rounded-xl text-[15px] outline-none transition-all"
                 style={{
                   backgroundColor: "var(--color-bg-secondary)",
-                  border: `1px solid ${
+                  border: `1.5px solid ${
                     anthropicStatus === "valid"
                       ? "var(--color-success)"
                       : anthropicStatus === "invalid"
@@ -460,23 +485,24 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                   color: "var(--color-text-primary)",
                 }}
               />
-              <StatusIcon status={anthropicStatus} />
+              {anthropicKey.trim() && anthropicStatus === "idle" && (
+                <button
+                  onClick={handleValidateAnthropic}
+                  className="shrink-0 text-[13px] font-semibold px-5 py-3 rounded-xl transition-all"
+                  style={{
+                    backgroundColor: "var(--color-accent)",
+                    color: "#fff",
+                    boxShadow: "0 2px 8px rgba(194, 116, 47, 0.25)",
+                  }}
+                >
+                  Validate
+                </button>
+              )}
+              {anthropicStatus !== "idle" && <StatusIcon status={anthropicStatus} />}
             </div>
-            {anthropicKey.trim() && anthropicStatus === "idle" && (
-              <button
-                onClick={handleValidateAnthropic}
-                className="mt-3 text-[13px] font-medium px-4 py-2 rounded-lg transition-colors"
-                style={{
-                  backgroundColor: "var(--color-accent)",
-                  color: "#fff",
-                }}
-              >
-                Validate Key
-              </button>
-            )}
             {anthropicStatus === "invalid" && (
               <p
-                className="mt-2 text-[13px]"
+                className="mt-3 text-[13px]"
                 style={{ color: "var(--color-recording)" }}
               >
                 Invalid API key. Please check and try again.
@@ -484,7 +510,7 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             )}
             {anthropicStatus === "valid" && (
               <p
-                className="mt-2 text-[13px]"
+                className="mt-3 text-[13px]"
                 style={{ color: "var(--color-success)" }}
               >
                 Key validated successfully.
@@ -497,9 +523,9 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
       case 2:
         return (
           <div className="fade-in">
-            <div className="mb-2">
+            <div className="mb-4">
               <span
-                className="inline-block text-[11px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full"
+                className="inline-block text-[11px] font-semibold uppercase tracking-[0.1em] px-3 py-1.5 rounded-full"
                 style={{
                   backgroundColor: "var(--color-accent-subtle)",
                   color: "var(--color-accent)",
@@ -509,24 +535,24 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               </span>
             </div>
             <h1
-              className="text-[28px] font-semibold leading-tight mb-2"
+              className="text-[32px] font-bold leading-tight mb-4"
               style={{ color: "var(--color-text-primary)" }}
             >
               Choose Your AI
             </h1>
             <p
-              className="text-[15px] mb-8 leading-relaxed"
+              className="text-[16px] mb-12 leading-relaxed"
               style={{ color: "var(--color-text-secondary)" }}
             >
               Select which model to use for structuring your meeting notes.
               You can change this anytime in Settings.
             </p>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {/* GPT-4o */}
               <button
                 onClick={() => setProvider("openai")}
-                className="flex items-center gap-4 px-4 py-4 rounded-xl text-left transition-all"
+                className="flex items-center gap-4 px-5 py-5 rounded-2xl text-left transition-all"
                 style={{
                   backgroundColor:
                     provider === "openai"
@@ -577,7 +603,7 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                 onClick={() => {
                   if (anthropicStatus === "valid") setProvider("anthropic");
                 }}
-                className="flex items-center gap-4 px-4 py-4 rounded-xl text-left transition-all"
+                className="flex items-center gap-4 px-5 py-5 rounded-2xl text-left transition-all"
                 style={{
                   backgroundColor:
                     provider === "anthropic"
@@ -635,9 +661,9 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
       case 3:
         return (
           <div className="fade-in">
-            <div className="mb-2">
+            <div className="mb-4">
               <span
-                className="inline-block text-[11px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full"
+                className="inline-block text-[11px] font-semibold uppercase tracking-[0.1em] px-3 py-1.5 rounded-full"
                 style={{
                   backgroundColor: "var(--color-accent-subtle)",
                   color: "var(--color-accent)",
@@ -647,13 +673,13 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               </span>
             </div>
             <h1
-              className="text-[28px] font-semibold leading-tight mb-2"
+              className="text-[32px] font-bold leading-tight mb-4"
               style={{ color: "var(--color-text-primary)" }}
             >
               Connect Your Calendar
             </h1>
             <p
-              className="text-[15px] mb-8 leading-relaxed"
+              className="text-[16px] mb-12 leading-relaxed"
               style={{ color: "var(--color-text-secondary)" }}
             >
               Phillnola can automatically detect meetings from Google Calendar
@@ -662,32 +688,42 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             </p>
 
             <div
-              className="flex flex-col items-center gap-4 py-8 rounded-xl"
+              className="flex flex-col items-center gap-5 py-10 rounded-2xl"
               style={{
                 backgroundColor: "var(--color-bg-secondary)",
-                border: "1px dashed var(--color-border)",
+                border: "1.5px dashed var(--color-border)",
               }}
             >
-              <svg
-                width="40"
-                height="40"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--color-text-muted)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <div
+                className="flex items-center justify-center rounded-2xl"
+                style={{
+                  width: 56,
+                  height: 56,
+                  backgroundColor: "var(--color-bg-hover)",
+                }}
               >
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--color-text-muted)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
               <button
-                className="px-5 py-2.5 rounded-lg text-[14px] font-medium transition-colors"
+                className="px-6 py-3 rounded-xl text-[14px] font-semibold transition-all"
                 style={{
                   backgroundColor: "var(--color-accent)",
                   color: "#fff",
+                  boxShadow: "0 2px 8px rgba(194, 116, 47, 0.25)",
                 }}
                 onClick={() => {
                   // TODO: implement Google Calendar OAuth in Task 8
@@ -696,10 +732,10 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                 Connect Google Calendar
               </button>
               <span
-                className="text-[12px]"
+                className="text-[13px]"
                 style={{ color: "var(--color-text-muted)" }}
               >
-                Coming soon -- you can skip for now
+                Coming soon — you can skip for now
               </span>
             </div>
           </div>
@@ -709,9 +745,9 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
       case 4:
         return (
           <div className="fade-in">
-            <div className="mb-2">
+            <div className="mb-4">
               <span
-                className="inline-block text-[11px] font-semibold uppercase tracking-[0.08em] px-2 py-0.5 rounded-full"
+                className="inline-block text-[11px] font-semibold uppercase tracking-[0.1em] px-3 py-1.5 rounded-full"
                 style={{
                   backgroundColor: "var(--color-accent-subtle)",
                   color: "var(--color-accent)",
@@ -721,25 +757,25 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               </span>
             </div>
             <h1
-              className="text-[28px] font-semibold leading-tight mb-2"
+              className="text-[32px] font-bold leading-tight mb-4"
               style={{ color: "var(--color-text-primary)" }}
             >
               Pick a Default Recipe
             </h1>
             <p
-              className="text-[15px] mb-8 leading-relaxed"
+              className="text-[16px] mb-12 leading-relaxed"
               style={{ color: "var(--color-text-secondary)" }}
             >
               Recipes tell the AI how to structure your notes. You can change
               the recipe for each meeting, but this will be your default.
             </p>
 
-            <div className="grid grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-1 gap-3.5">
               {recipes.map((recipe) => (
                 <button
                   key={recipe.id}
                   onClick={() => setSelectedRecipe(recipe.id)}
-                  className="flex items-start gap-3.5 px-4 py-3.5 rounded-xl text-left transition-all"
+                  className="flex items-start gap-4 px-5 py-4 rounded-2xl text-left transition-all"
                   style={{
                     backgroundColor:
                       selectedRecipe === recipe.id
@@ -777,7 +813,7 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
                       {recipe.name}
                     </div>
                     <div
-                      className="text-[12px] mt-0.5 leading-relaxed"
+                      className="text-[13px] mt-1 leading-relaxed"
                       style={{ color: "var(--color-text-muted)" }}
                     >
                       {recipe.description}
@@ -794,20 +830,21 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
         return (
           <div className="fade-in text-center">
             <div
-              className="mx-auto mb-6 flex items-center justify-center rounded-full"
+              className="mx-auto mb-10 flex items-center justify-center rounded-full"
               style={{
-                width: 64,
-                height: 64,
+                width: 88,
+                height: 88,
                 backgroundColor: "var(--color-accent-subtle)",
+                boxShadow: "0 0 0 14px var(--color-accent-subtle)",
               }}
             >
               <svg
-                width="32"
-                height="32"
+                width="40"
+                height="40"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="var(--color-accent)"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
@@ -815,19 +852,19 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               </svg>
             </div>
             <h1
-              className="text-[28px] font-semibold leading-tight mb-2"
+              className="text-[32px] font-bold leading-tight mb-4"
               style={{ color: "var(--color-text-primary)" }}
             >
               You're all set
             </h1>
             <p
-              className="text-[15px] mb-2 leading-relaxed"
+              className="text-[16px] mb-4 leading-relaxed"
               style={{ color: "var(--color-text-secondary)" }}
             >
               Phillnola is ready to capture and structure your meeting notes.
             </p>
             <p
-              className="text-[13px] leading-relaxed"
+              className="text-[14px] leading-relaxed"
               style={{ color: "var(--color-text-muted)" }}
             >
               Start a new meeting or let it auto-detect from your calendar.
@@ -854,19 +891,19 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
         style={{ height: 38 }}
       />
 
-      <div className="w-full max-w-[480px] px-6">
+      <div className="w-full max-w-[520px] px-8">
         {/* Content */}
-        <div className="mb-10">{renderStep()}</div>
+        <div className="mb-14">{renderStep()}</div>
 
         {/* Footer: step indicator + navigation */}
         <div className="flex items-center justify-between">
           <StepIndicator total={TOTAL_STEPS} current={step} />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3.5">
             {step > 0 && step < TOTAL_STEPS - 1 && (
               <button
                 onClick={handleBack}
-                className="px-4 py-2 rounded-lg text-[13px] font-medium transition-colors"
+                className="px-5 py-3 rounded-xl text-[14px] font-medium transition-colors"
                 style={{
                   backgroundColor: "var(--color-bg-hover)",
                   color: "var(--color-text-secondary)",
@@ -880,7 +917,7 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             {(step === 1 || step === 3) && (
               <button
                 onClick={() => setStep((s) => s + 1)}
-                className="px-4 py-2 rounded-lg text-[13px] font-medium transition-colors"
+                className="px-5 py-3 rounded-xl text-[14px] font-medium transition-colors"
                 style={{
                   color: "var(--color-text-muted)",
                 }}
@@ -892,13 +929,14 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
             <button
               onClick={handleNext}
               disabled={!canProceed()}
-              className="px-5 py-2 rounded-lg text-[13px] font-medium transition-all"
+              className="px-7 py-3 rounded-xl text-[14px] font-semibold transition-all"
               style={{
                 backgroundColor: canProceed()
                   ? "var(--color-accent)"
                   : "var(--color-bg-hover)",
                 color: canProceed() ? "#fff" : "var(--color-text-placeholder)",
                 cursor: canProceed() ? "pointer" : "not-allowed",
+                boxShadow: canProceed() ? "0 2px 8px rgba(194, 116, 47, 0.3)" : "none",
               }}
             >
               {step === TOTAL_STEPS - 1 ? "Get Started" : "Continue"}

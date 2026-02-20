@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { AiProvider, Settings as SettingsType } from "../hooks/useSettings";
 
 /* ── Types ────────────────────────────────────────────────────────── */
@@ -60,10 +60,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-8">
+    <div style={{ marginBottom: 48 }}>
       <h2
-        className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-4"
-        style={{ color: "var(--color-text-muted)" }}
+        style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 24, color: "var(--color-text-muted)" }}
       >
         {title}
       </h2>
@@ -96,6 +95,12 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
     settings.audio_device_id || "",
   );
 
+  // Google Calendar
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState(settings.google_client_id || "");
+  const [googleClientSecret, setGoogleClientSecret] = useState(settings.google_client_secret || "");
+  const [calendarStatus, setCalendarStatus] = useState<"idle" | "connecting" | "ok" | "fail">("idle");
+
   // Danger zone
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -105,7 +110,14 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
     setAnthropicKey(settings.anthropic_key || "");
     setProvider((settings.ai_provider as AiProvider) || "openai");
     setSelectedDevice(settings.audio_device_id || "");
+    setGoogleClientId(settings.google_client_id || "");
+    setGoogleClientSecret(settings.google_client_secret || "");
   }, [settings]);
+
+  // Check Google Calendar connection status
+  useEffect(() => {
+    window.phillnola.calendar.isConnected().then(setGoogleConnected);
+  }, []);
 
   // Load audio devices
   useEffect(() => {
@@ -170,6 +182,33 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
     },
     [saveSetting],
   );
+
+  const handleSaveGoogleCreds = useCallback(async () => {
+    await saveSetting("google_client_id", googleClientId);
+    await saveSetting("google_client_secret", googleClientSecret);
+  }, [googleClientId, googleClientSecret, saveSetting]);
+
+  const handleConnectGoogle = useCallback(async () => {
+    setCalendarStatus("connecting");
+    // Save credentials first
+    await saveSetting("google_client_id", googleClientId);
+    await saveSetting("google_client_secret", googleClientSecret);
+
+    const result = await window.phillnola.calendar.auth();
+    if (result.success) {
+      setCalendarStatus("ok");
+      setGoogleConnected(true);
+      setTimeout(() => setCalendarStatus("idle"), 3000);
+    } else {
+      setCalendarStatus("fail");
+      setTimeout(() => setCalendarStatus("idle"), 3000);
+    }
+  }, [googleClientId, googleClientSecret, saveSetting]);
+
+  const handleDisconnectGoogle = useCallback(async () => {
+    await window.phillnola.calendar.disconnect();
+    setGoogleConnected(false);
+  }, []);
 
   const handleReset = useCallback(async () => {
     if (!confirmReset) {
@@ -246,18 +285,18 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
 
       {/* Header */}
       <div
-        className="flex items-center justify-between px-10 pb-5"
-        style={{ borderBottom: "1px solid var(--color-border-light)" }}
+        className="flex items-center justify-between"
+        style={{ padding: "0 48px 28px 48px", borderBottom: "1px solid var(--color-border-light)" }}
       >
         <h1
-          className="text-[22px] font-semibold"
-          style={{ color: "var(--color-text-primary)" }}
+          style={{ fontSize: 26, fontWeight: 600, color: "var(--color-text-primary)" }}
         >
           Settings
         </h1>
         <button
           onClick={onClose}
-          className="btn btn-ghost p-1.5 no-drag"
+          className="btn btn-ghost no-drag"
+          style={{ padding: 10 }}
           title="Close settings"
         >
           <svg
@@ -278,26 +317,28 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="px-10 py-8 max-w-[560px]">
+        <div style={{ padding: "40px 48px", maxWidth: 580 }}>
           {/* ── API Keys Section ────────────────────────────────── */}
           <Section title="API Keys">
             {/* OpenAI */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-2">
+            <div style={{ marginBottom: 32 }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
                 <label
-                  className="text-[13px] font-medium"
-                  style={{ color: "var(--color-text-primary)" }}
+                  style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)" }}
                 >
                   OpenAI API Key
                 </label>
                 <TestBadge status={openaiTest} />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center" style={{ gap: 10 }}>
                 <div
-                  className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg"
+                  className="flex-1 flex items-center"
                   style={{
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 12,
                     backgroundColor: "var(--color-bg-secondary)",
-                    border: "1px solid var(--color-border)",
+                    border: "1.5px solid var(--color-border)",
                   }}
                 >
                   <input
@@ -306,8 +347,8 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                     onChange={(e) => setOpenaiKey(e.target.value)}
                     onBlur={handleSaveOpenAI}
                     placeholder="sk-..."
-                    className="flex-1 bg-transparent border-none outline-none text-[13px]"
-                    style={{ color: "var(--color-text-primary)" }}
+                    className="flex-1 bg-transparent border-none outline-none"
+                    style={{ fontSize: 14, color: "var(--color-text-primary)" }}
                   />
                   <button
                     onClick={() => setShowOpenai(!showOpenai)}
@@ -343,8 +384,13 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                 <button
                   onClick={handleTestOpenAI}
                   disabled={!openaiKey || openaiTest === "testing"}
-                  className="shrink-0 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors"
+                  className="shrink-0 transition-colors"
                   style={{
+                    padding: "10px 20px",
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    border: "none",
                     backgroundColor: "var(--color-bg-hover)",
                     color: openaiKey
                       ? "var(--color-text-secondary)"
@@ -359,21 +405,23 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
 
             {/* Anthropic */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
                 <label
-                  className="text-[13px] font-medium"
-                  style={{ color: "var(--color-text-primary)" }}
+                  style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)" }}
                 >
                   Anthropic API Key
                 </label>
                 <TestBadge status={anthropicTest} />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center" style={{ gap: 10 }}>
                 <div
-                  className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg"
+                  className="flex-1 flex items-center"
                   style={{
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 12,
                     backgroundColor: "var(--color-bg-secondary)",
-                    border: "1px solid var(--color-border)",
+                    border: "1.5px solid var(--color-border)",
                   }}
                 >
                   <input
@@ -382,8 +430,8 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                     onChange={(e) => setAnthropicKey(e.target.value)}
                     onBlur={handleSaveAnthropic}
                     placeholder="sk-ant-..."
-                    className="flex-1 bg-transparent border-none outline-none text-[13px]"
-                    style={{ color: "var(--color-text-primary)" }}
+                    className="flex-1 bg-transparent border-none outline-none"
+                    style={{ fontSize: 14, color: "var(--color-text-primary)" }}
                   />
                   <button
                     onClick={() => setShowAnthropic(!showAnthropic)}
@@ -419,8 +467,13 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                 <button
                   onClick={handleTestAnthropic}
                   disabled={!anthropicKey || anthropicTest === "testing"}
-                  className="shrink-0 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors"
+                  className="shrink-0 transition-colors"
                   style={{
+                    padding: "10px 20px",
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    border: "none",
                     backgroundColor: "var(--color-bg-hover)",
                     color: anthropicKey
                       ? "var(--color-text-secondary)"
@@ -436,11 +489,12 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
 
           {/* ── AI Provider Section ─────────────────────────────── */}
           <Section title="AI Provider">
-            <div className="flex gap-3">
+            <div className="flex" style={{ gap: 14 }}>
               <button
                 onClick={() => handleProviderChange("openai")}
-                className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+                className="flex-1 flex items-center transition-all"
                 style={{
+                  gap: 12, padding: "16px 20px", borderRadius: 16,
                   backgroundColor:
                     provider === "openai"
                       ? "var(--color-accent-subtle)"
@@ -483,8 +537,9 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                 onClick={() => {
                   if (anthropicKey) handleProviderChange("anthropic");
                 }}
-                className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+                className="flex-1 flex items-center transition-all"
                 style={{
+                  gap: 12, padding: "16px 20px", borderRadius: 16,
                   backgroundColor:
                     provider === "anthropic"
                       ? "var(--color-accent-subtle)"
@@ -538,8 +593,7 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
           {/* ── Audio Device Section ────────────────────────────── */}
           <Section title="Audio">
             <label
-              className="block text-[13px] font-medium mb-2"
-              style={{ color: "var(--color-text-primary)" }}
+              style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 10, color: "var(--color-text-primary)" }}
             >
               Input Device
             </label>
@@ -547,10 +601,11 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
               <select
                 value={selectedDevice}
                 onChange={(e) => handleDeviceChange(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none cursor-pointer appearance-none pr-8"
+                className="outline-none cursor-pointer appearance-none"
                 style={{
+                  width: "100%", padding: "12px 32px 12px 16px", borderRadius: 12, fontSize: 14,
                   backgroundColor: "var(--color-bg-secondary)",
-                  border: "1px solid var(--color-border)",
+                  border: "1.5px solid var(--color-border)",
                   color: "var(--color-text-primary)",
                 }}
               >
@@ -572,18 +627,114 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
             )}
           </Section>
 
+          {/* ── Google Calendar Section ──────────────────────────── */}
+          <Section title="Google Calendar">
+            {googleConnected ? (
+              <div className="flex items-center justify-between" style={{ padding: "16px 20px", borderRadius: 12, backgroundColor: "var(--color-bg-secondary)", border: "1.5px solid var(--color-border)" }}>
+                <div className="flex items-center" style={{ gap: 12 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: "var(--color-success)" }} />
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)" }}>
+                    Connected to Google Calendar
+                  </span>
+                </div>
+                <button
+                  onClick={handleDisconnectGoogle}
+                  className="transition-colors"
+                  style={{ fontSize: 13, fontWeight: 500, padding: "8px 16px", borderRadius: 12, border: "none", color: "var(--color-recording)", backgroundColor: "var(--color-recording-bg)" }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 10, color: "var(--color-text-primary)" }}>
+                    Client ID
+                  </label>
+                  <input
+                    type="text"
+                    value={googleClientId}
+                    onChange={(e) => setGoogleClientId(e.target.value)}
+                    onBlur={handleSaveGoogleCreds}
+                    placeholder="your-app.apps.googleusercontent.com"
+                    className="outline-none"
+                    style={{
+                      width: "100%", padding: "12px 16px", borderRadius: 12, fontSize: 14,
+                      backgroundColor: "var(--color-bg-secondary)",
+                      border: "1.5px solid var(--color-border)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 10, color: "var(--color-text-primary)" }}>
+                    Client Secret
+                  </label>
+                  <input
+                    type="password"
+                    value={googleClientSecret}
+                    onChange={(e) => setGoogleClientSecret(e.target.value)}
+                    onBlur={handleSaveGoogleCreds}
+                    placeholder="GOCSPX-..."
+                    className="outline-none"
+                    style={{
+                      width: "100%", padding: "12px 16px", borderRadius: 12, fontSize: 14,
+                      backgroundColor: "var(--color-bg-secondary)",
+                      border: "1.5px solid var(--color-border)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleConnectGoogle}
+                  disabled={!googleClientId || !googleClientSecret || calendarStatus === "connecting"}
+                  className="flex items-center transition-all"
+                  style={{
+                    gap: 10, padding: "12px 20px", borderRadius: 12, fontSize: 14, fontWeight: 600, border: "none",
+                    backgroundColor: googleClientId && googleClientSecret ? "var(--color-accent)" : "var(--color-bg-hover)",
+                    color: googleClientId && googleClientSecret ? "#fff" : "var(--color-text-placeholder)",
+                    cursor: googleClientId && googleClientSecret ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {calendarStatus === "connecting" ? "Connecting..." : "Connect Google Calendar"}
+                </button>
+                {calendarStatus === "ok" && (
+                  <p className="text-[12px] mt-2" style={{ color: "var(--color-success)" }}>
+                    Connected successfully!
+                  </p>
+                )}
+                {calendarStatus === "fail" && (
+                  <p className="text-[12px] mt-2" style={{ color: "var(--color-recording)" }}>
+                    Connection failed. Check your credentials and try again.
+                  </p>
+                )}
+                <p className="text-[12px] mt-3" style={{ color: "var(--color-text-muted)" }}>
+                  Create a Google Cloud project with Calendar API enabled, then add an OAuth 2.0 Client ID (Desktop app type).
+                </p>
+              </>
+            )}
+          </Section>
+
           {/* ── Storage Section ──────────────────────────────────── */}
           <Section title="Storage">
             <div
-              className="flex items-center gap-3 px-4 py-3 rounded-lg"
+              className="flex items-center"
               style={{
+                gap: 14, padding: "16px 20px", borderRadius: 12,
                 backgroundColor: "var(--color-bg-secondary)",
-                border: "1px solid var(--color-border)",
+                border: "1.5px solid var(--color-border)",
               }}
             >
               <svg
-                width="16"
-                height="16"
+                width="18"
+                height="18"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="var(--color-text-muted)"
@@ -594,7 +745,7 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
               <span
-                className="text-[13px] font-mono"
+                className="text-[14px] font-mono"
                 style={{ color: "var(--color-text-secondary)" }}
               >
                 ~/.phillnola/phillnola.db
@@ -605,31 +756,30 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
           {/* ── Danger Zone ──────────────────────────────────────── */}
           <Section title="Danger Zone">
             <div
-              className="px-4 py-4 rounded-lg"
               style={{
-                border: "1px solid var(--color-recording)",
+                padding: 20, borderRadius: 12,
+                border: "1.5px solid var(--color-recording)",
                 backgroundColor: "var(--color-recording-bg)",
               }}
             >
               <div className="flex items-center justify-between">
                 <div>
                   <div
-                    className="text-[13px] font-medium"
-                    style={{ color: "var(--color-text-primary)" }}
+                    style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)" }}
                   >
                     Reset All Data
                   </div>
                   <p
-                    className="text-[12px] mt-0.5"
-                    style={{ color: "var(--color-text-muted)" }}
+                    style={{ fontSize: 13, marginTop: 4, color: "var(--color-text-muted)" }}
                   >
                     Clear all settings, API keys, and restart onboarding.
                   </p>
                 </div>
                 <button
                   onClick={handleReset}
-                  className="shrink-0 px-4 py-2 rounded-lg text-[12px] font-medium transition-colors"
+                  className="shrink-0 transition-colors"
                   style={{
+                    padding: "10px 20px", borderRadius: 12, fontSize: 13, fontWeight: 500,
                     backgroundColor: confirmReset
                       ? "var(--color-recording)"
                       : "transparent",

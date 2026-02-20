@@ -49,6 +49,20 @@ declare global {
           callback: (progress: { completed: number; total: number; stage: string }) => void,
         ) => () => void;
       };
+      calendar: {
+        auth: () => Promise<{ success: boolean; error?: string }>;
+        getEvents: (daysAhead?: number) => Promise<{
+          id: string;
+          title: string;
+          start: string;
+          end: string;
+          attendees: string[];
+          meetLink?: string;
+        }[]>;
+        isConnected: () => Promise<boolean>;
+        disconnect: () => Promise<{ success: boolean }>;
+      };
+      on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
     };
   }
 }

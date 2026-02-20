@@ -112,37 +112,37 @@ export default function RecordingBar({ elapsed, audioLevel, onStop }: RecordingB
 
   return (
     <div
-      className="recording-bar flex items-center justify-between px-5 py-2.5"
+      className="recording-bar flex items-center justify-between"
       style={{
+        padding: "14px 24px",
         borderTop: "1px solid var(--color-border)",
         backgroundColor: "var(--color-bg-secondary)",
       }}
     >
       {/* Left side: recording indicator + elapsed time */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center" style={{ gap: 14 }}>
         <span className="recording-dot" />
         <span
-          className="text-[13px] font-medium"
-          style={{ color: "var(--color-recording)" }}
+          style={{ fontSize: 14, fontWeight: 500, color: "var(--color-recording)" }}
         >
           Recording
         </span>
         <span
           className="font-mono-timestamp"
-          style={{ color: "var(--color-text-muted)", fontSize: 12 }}
+          style={{ color: "var(--color-text-muted)", fontSize: 13 }}
         >
           {formatTime(elapsed)}
         </span>
       </div>
 
       {/* Right side: waveform + stop button */}
-      <div className="flex items-center gap-5">
+      <div className="flex items-center" style={{ gap: 20 }}>
         {/* Waveform visualizer canvas */}
         <canvas
           ref={canvasRef}
           style={{
-            width: 120,
-            height: 24,
+            width: 140,
+            height: 28,
             // Inherit CSS variables for the drawing function
             // @ts-expect-error: custom CSS properties
             "--color-success": "var(--color-success)",
@@ -152,10 +152,10 @@ export default function RecordingBar({ elapsed, audioLevel, onStop }: RecordingB
         {/* Stop button */}
         <button
           onClick={onStop}
-          className="stop-btn flex items-center gap-1.5 text-[12px] font-medium px-3.5 py-1.5 rounded-full no-drag"
-          style={{ backgroundColor: "var(--color-recording)", color: "#fff" }}
+          className="stop-btn flex items-center no-drag"
+          style={{ gap: 8, fontSize: 13, fontWeight: 600, padding: "8px 20px", borderRadius: 999, backgroundColor: "var(--color-recording)", color: "#fff" }}
         >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
             <rect x="4" y="4" width="16" height="16" rx="3" />
           </svg>
           Stop

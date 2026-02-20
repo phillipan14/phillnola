@@ -70,14 +70,14 @@ export default function ProcessingOverlay({
         alignItems: "center",
         justifyContent: "center",
         zIndex: 50,
-        gap: 20,
+        gap: 24,
       }}
     >
       {/* Animated icon */}
       <div
         style={{
-          width: 48,
-          height: 48,
+          width: 56,
+          height: 56,
           borderRadius: "50%",
           border: "3px solid var(--color-border)",
           borderTopColor: stage === "done" ? "var(--color-success)" : "var(--color-accent)",
@@ -89,8 +89,8 @@ export default function ProcessingOverlay({
       >
         {stage === "done" && (
           <svg
-            width="24"
-            height="24"
+            width="28"
+            height="28"
             viewBox="0 0 24 24"
             fill="none"
             stroke="var(--color-success)"
@@ -106,8 +106,8 @@ export default function ProcessingOverlay({
       {/* Stage label */}
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 500,
+          fontSize: 16,
+          fontWeight: 600,
           color: "var(--color-text-primary)",
           textAlign: "center",
         }}
@@ -119,7 +119,7 @@ export default function ProcessingOverlay({
       {stage === "transcribing" && chunksTotal > 0 && (
         <div
           style={{
-            fontSize: 12,
+            fontSize: 13,
             color: "var(--color-text-muted)",
           }}
         >
@@ -130,9 +130,9 @@ export default function ProcessingOverlay({
       {/* Progress bar */}
       <div
         style={{
-          width: 240,
-          height: 4,
-          borderRadius: 2,
+          width: 280,
+          height: 5,
+          borderRadius: 3,
           backgroundColor: "var(--color-bg-hover)",
           overflow: "hidden",
         }}
@@ -141,7 +141,7 @@ export default function ProcessingOverlay({
           style={{
             width: `${progress}%`,
             height: "100%",
-            borderRadius: 2,
+            borderRadius: 3,
             backgroundColor:
               stage === "done" ? "var(--color-success)" : "var(--color-accent)",
             transition: "width 0.4s ease, background-color 0.3s ease",
@@ -155,9 +155,9 @@ export default function ProcessingOverlay({
           onClick={onCancel}
           className="btn btn-ghost no-drag"
           style={{
-            fontSize: 12,
+            fontSize: 13,
             color: "var(--color-text-muted)",
-            marginTop: 8,
+            marginTop: 12,
           }}
         >
           Cancel

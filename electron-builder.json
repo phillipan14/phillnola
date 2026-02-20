@@ -1,16 +1,41 @@
 {
-  "appId": "com.phillnola.app",
+  "appId": "com.phillipan.phillnola",
   "productName": "Phillnola",
+  "asar": true,
   "directories": {
     "output": "release"
   },
   "files": [
     "dist/**/*",
-    "electron/**/*.js"
+    "electron/**/*.js",
+    "package.json"
   ],
+  "extraResources": [],
   "mac": {
-    "target": "dmg",
-    "category": "public.app-category.productivity"
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "category": "public.app-category.productivity",
+    "icon": "build/icon.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "build/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.plist"
+  },
+  "dmg": {
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ]
   },
   "win": {
     "target": "nsis"

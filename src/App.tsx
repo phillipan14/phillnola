@@ -284,6 +284,13 @@ export default function App() {
   // Clipboard feedback
   const [showCopied, setShowCopied] = useState(false);
 
+  // Inline title editing
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   // Theme
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     return (settings.theme as ThemeMode) || "system";
@@ -393,6 +400,12 @@ export default function App() {
     setThemeMode(mode);
     applyTheme(mode);
   }, [settings.theme]);
+
+  // ── Sync edit title when meeting selection changes ───────────
+  useEffect(() => {
+    if (activeMeeting) setEditTitle(activeMeeting.title);
+    setConfirmDelete(false);
+  }, [selectedMeeting, activeMeeting?.title]);
 
   // ── Copy to clipboard ─────────────────────────────────────────
   const handleCopyToClipboard = useCallback(async () => {
@@ -847,9 +860,36 @@ export default function App() {
               <div style={{ padding: "0 48px 28px 48px", borderBottom: "1px solid var(--color-border-light)" }}>
                 <div className="flex items-start justify-between" style={{ gap: 24 }}>
                   <div className="min-w-0">
-                    <h1 style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.2, color: "var(--color-text-primary)" }}>
-                      {activeMeeting.title}
-                    </h1>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onFocus={() => setEditingTitle(true)}
+                      onBlur={async () => {
+                        setEditingTitle(false);
+                        const trimmed = editTitle.trim();
+                        if (trimmed && trimmed !== activeMeeting.title) {
+                          await window.phillnola.meetings.update(activeMeeting.id, { title: trimmed });
+                          await loadMeetings();
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      className="no-drag w-full"
+                      style={{
+                        fontSize: 26,
+                        fontWeight: 600,
+                        lineHeight: 1.2,
+                        color: "var(--color-text-primary)",
+                        backgroundColor: "transparent",
+                        border: "none",
+                        outline: "none",
+                        padding: 0,
+                        margin: 0,
+                        fontFamily: "inherit",
+                      }}
+                    />
                     <div className="flex items-center" style={{ gap: 16, marginTop: 14 }}>
                       <span style={{ fontSize: 13.5, color: "var(--color-text-muted)" }}>
                         {activeMeeting.time}{activeMeeting.duration ? ` \u00b7 ${activeMeeting.duration}` : ""}

@@ -687,57 +687,160 @@ export default function Onboarding({ onComplete, saveSetting }: Props) {
               later.
             </p>
 
-            <div
-              className="flex flex-col items-center gap-5 py-10 rounded-2xl"
-              style={{
-                backgroundColor: "var(--color-bg-secondary)",
-                border: "1.5px dashed var(--color-border)",
-              }}
-            >
+            {calendarConnected || calendarStatus === "ok" ? (
               <div
-                className="flex items-center justify-center rounded-2xl"
+                className="flex flex-col items-center gap-4 py-10 rounded-2xl"
                 style={{
-                  width: 56,
-                  height: 56,
-                  backgroundColor: "var(--color-bg-hover)",
+                  backgroundColor: "var(--color-bg-secondary)",
+                  border: "1.5px solid var(--color-success)",
                 }}
               >
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--color-text-muted)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <div
+                  className="flex items-center justify-center rounded-full"
+                  style={{
+                    width: 56,
+                    height: 56,
+                    backgroundColor: "var(--color-success)",
+                  }}
                 >
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
+                  <svg
+                    width="28"
+                    height="28"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <span
+                  className="text-[15px] font-semibold"
+                  style={{ color: "var(--color-success)" }}
+                >
+                  Google Calendar Connected
+                </span>
               </div>
-              <button
-                className="px-6 py-3 rounded-xl text-[14px] font-semibold transition-all"
-                style={{
-                  backgroundColor: "var(--color-accent)",
-                  color: "#fff",
-                  boxShadow: "0 2px 8px rgba(194, 116, 47, 0.25)",
-                }}
-                onClick={() => {
-                  // TODO: implement Google Calendar OAuth in Task 8
-                }}
-              >
-                Connect Google Calendar
-              </button>
-              <span
-                className="text-[13px]"
-                style={{ color: "var(--color-text-muted)" }}
-              >
-                Coming soon — you can skip for now
-              </span>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-5">
+                <div>
+                  <label
+                    className="block text-[14px] font-medium mb-2"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    Google Client ID
+                  </label>
+                  <input
+                    type="text"
+                    value={googleClientId}
+                    onChange={(e) => setGoogleClientId(e.target.value)}
+                    placeholder="123456789.apps.googleusercontent.com"
+                    className="w-full px-4 py-3 rounded-xl text-[15px] outline-none transition-all"
+                    style={{
+                      backgroundColor: "var(--color-bg-secondary)",
+                      border: "1.5px solid var(--color-border)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className="block text-[14px] font-medium mb-2"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    Google Client Secret
+                  </label>
+                  <input
+                    type="password"
+                    value={googleClientSecret}
+                    onChange={(e) => setGoogleClientSecret(e.target.value)}
+                    placeholder="GOCSPX-..."
+                    className="w-full px-4 py-3 rounded-xl text-[15px] outline-none transition-all"
+                    style={{
+                      backgroundColor: "var(--color-bg-secondary)",
+                      border: "1.5px solid var(--color-border)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                </div>
+
+                {!googleClientId.trim() && !googleClientSecret.trim() ? (
+                  <p
+                    className="text-[13px]"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    You can skip this for now and connect later in Settings.
+                  </p>
+                ) : (
+                  <p
+                    className="text-[13px] leading-relaxed"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    Create OAuth credentials in the Google Cloud Console with
+                    the Calendar API enabled, then paste them above.
+                  </p>
+                )}
+
+                <button
+                  onClick={handleConnectGoogle}
+                  disabled={
+                    !googleClientId.trim() ||
+                    !googleClientSecret.trim() ||
+                    calendarStatus === "connecting"
+                  }
+                  className="flex items-center justify-center gap-2.5 px-6 py-3 rounded-xl text-[14px] font-semibold transition-all"
+                  style={{
+                    backgroundColor:
+                      googleClientId.trim() && googleClientSecret.trim()
+                        ? "var(--color-accent)"
+                        : "var(--color-bg-hover)",
+                    color:
+                      googleClientId.trim() && googleClientSecret.trim()
+                        ? "#fff"
+                        : "var(--color-text-placeholder)",
+                    cursor:
+                      googleClientId.trim() && googleClientSecret.trim()
+                        ? "pointer"
+                        : "not-allowed",
+                    boxShadow:
+                      googleClientId.trim() && googleClientSecret.trim()
+                        ? "0 2px 8px rgba(194, 116, 47, 0.25)"
+                        : "none",
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {calendarStatus === "connecting"
+                    ? "Connecting..."
+                    : "Connect Google Calendar"}
+                </button>
+
+                {calendarStatus === "fail" && (
+                  <p
+                    className="text-[13px]"
+                    style={{ color: "var(--color-recording)" }}
+                  >
+                    Connection failed. Check your credentials and try again.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         );
 

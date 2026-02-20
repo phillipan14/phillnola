@@ -318,6 +318,14 @@ export function saveRecipe(data: RecipeInput & { id?: string }): Recipe {
   }
 }
 
+export function deleteRecipe(id: string): boolean {
+  const database = getDatabase();
+  // Don't allow deleting built-in recipes (seeded with "recipe-" prefix)
+  if (id.startsWith("recipe-")) return false;
+  const result = database.prepare("DELETE FROM recipes WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
 // ── Settings CRUD ────────────────────────────────────────────────────────────
 
 export function getSetting(key: string): string | undefined {

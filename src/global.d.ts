@@ -23,6 +23,7 @@ declare global {
         list: () => Promise<unknown[]>;
         get: (id: string) => Promise<unknown>;
         save: (data: unknown) => Promise<unknown>;
+        delete: (id: string) => Promise<boolean>;
       };
       recording: {
         getDesktopSources: () => Promise<

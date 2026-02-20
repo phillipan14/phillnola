@@ -14,6 +14,7 @@ import {
   getRecipes,
   getRecipe,
   saveRecipe,
+  deleteRecipe,
   getAllSettings,
   getSetting,
   setSetting,
@@ -171,6 +172,10 @@ ipcMain.handle("get-recipe", async (_event, id: string) => {
 
 ipcMain.handle("save-recipe", async (_event, data) => {
   return saveRecipe(data);
+});
+
+ipcMain.handle("delete-recipe", async (_event, id: string) => {
+  return deleteRecipe(id);
 });
 
 // Recording — Audio Capture

@@ -16,6 +16,14 @@ interface AudioDevice {
   label: string;
 }
 
+interface Recipe {
+  id: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  is_default: number;
+}
+
 /* ── Helpers ──────────────────────────────────────────────────────── */
 
 async function testOpenAI(key: string): Promise<boolean> {
@@ -101,6 +109,11 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
   const [googleClientSecret, setGoogleClientSecret] = useState(settings.google_client_secret || "");
   const [calendarStatus, setCalendarStatus] = useState<"idle" | "connecting" | "ok" | "fail">("idle");
 
+  // Recipes
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   // Danger zone
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -139,6 +152,13 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
       }
     }
     loadDevices();
+  }, []);
+
+  // Load recipes
+  useEffect(() => {
+    window.phillnola.recipes.list().then((list) => {
+      setRecipes(list as Recipe[]);
+    });
   }, []);
 
   /* ── Handlers ───────────────────────────────────────────────────── */
@@ -208,6 +228,96 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
   const handleDisconnectGoogle = useCallback(async () => {
     await window.phillnola.calendar.disconnect();
     setGoogleConnected(false);
+  }, []);
+
+  const handleRecipeSave = useCallback(async (recipeId: string) => {
+    // Read from latest state to avoid stale closures on blur
+    let target: Recipe | undefined;
+    setRecipes((prev) => {
+      target = prev.find((r) => r.id === recipeId);
+      return prev;
+    });
+    if (!target) return;
+    const saved = (await window.phillnola.recipes.save({
+      id: target.id,
+      name: target.name,
+      description: target.description,
+      system_prompt: target.system_prompt,
+      is_default: target.is_default,
+    })) as Recipe;
+    setRecipes((prev) =>
+      prev.map((r) => (r.id === saved.id ? saved : r)),
+    );
+  }, []);
+
+  const handleRecipeCreate = useCallback(async () => {
+    const saved = (await window.phillnola.recipes.save({
+      name: "New Recipe",
+      description: "",
+      system_prompt: "",
+      is_default: 0,
+    })) as Recipe;
+    setRecipes((prev) => [...prev, saved]);
+    setExpandedPrompts((prev) => new Set(prev).add(saved.id));
+  }, []);
+
+  const handleSetDefault = useCallback(async (recipeId: string) => {
+    // Read current recipes from state to avoid stale closure
+    let current: Recipe[] = [];
+    setRecipes((prev) => {
+      current = prev;
+      return prev;
+    });
+
+    const updated: Recipe[] = [];
+    for (const r of current) {
+      if (r.is_default === 1 && r.id !== recipeId) {
+        const saved = (await window.phillnola.recipes.save({
+          ...r,
+          is_default: 0,
+        })) as Recipe;
+        updated.push(saved);
+      } else if (r.id === recipeId) {
+        const saved = (await window.phillnola.recipes.save({
+          ...r,
+          is_default: 1,
+        })) as Recipe;
+        updated.push(saved);
+      } else {
+        updated.push(r);
+      }
+    }
+    setRecipes(updated);
+  }, []);
+
+  const handleRecipeDelete = useCallback((recipeId: string) => {
+    // UI-only removal. A backend delete endpoint (electron/db.ts + preload)
+    // should be added to persist deletion across reloads.
+    setRecipes((prev) => prev.filter((r) => r.id !== recipeId));
+    setConfirmDeleteId(null);
+  }, []);
+
+  const handleRecipeFieldChange = useCallback(
+    (recipeId: string, field: keyof Recipe, value: string) => {
+      setRecipes((prev) =>
+        prev.map((r) =>
+          r.id === recipeId ? { ...r, [field]: value } : r,
+        ),
+      );
+    },
+    [],
+  );
+
+  const togglePromptExpanded = useCallback((recipeId: string) => {
+    setExpandedPrompts((prev) => {
+      const next = new Set(prev);
+      if (next.has(recipeId)) {
+        next.delete(recipeId);
+      } else {
+        next.add(recipeId);
+      }
+      return next;
+    });
   }, []);
 
   const handleReset = useCallback(async () => {
@@ -588,6 +698,244 @@ export default function Settings({ settings, saveSetting, onClose }: Props) {
                 Add an Anthropic API key above to enable Claude.
               </p>
             )}
+          </Section>
+
+          {/* ── Recipes Section ─────────────────────────────────── */}
+          <Section title="Recipes">
+            {recipes.map((recipe) => (
+              <div
+                key={recipe.id}
+                style={{
+                  marginBottom: 20,
+                  padding: 20,
+                  borderRadius: 12,
+                  backgroundColor: "var(--color-bg-secondary)",
+                  border: "1.5px solid var(--color-border)",
+                }}
+              >
+                {/* Header row: name + badges/actions */}
+                <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+                  <div className="flex items-center" style={{ gap: 10, flex: 1 }}>
+                    <input
+                      type="text"
+                      value={recipe.name}
+                      onChange={(e) => handleRecipeFieldChange(recipe.id, "name", e.target.value)}
+                      onBlur={() => handleRecipeSave(recipe.id)}
+                      className="flex-1 bg-transparent border-none outline-none"
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: "var(--color-text-primary)",
+                        padding: "4px 0",
+                      }}
+                    />
+                    {recipe.is_default === 1 && (
+                      <span
+                        className="text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: "rgba(48, 164, 108, 0.1)",
+                          color: "var(--color-success)",
+                        }}
+                      >
+                        Default
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div style={{ marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    value={recipe.description}
+                    onChange={(e) => handleRecipeFieldChange(recipe.id, "description", e.target.value)}
+                    onBlur={() => handleRecipeSave(recipe.id)}
+                    placeholder="Short description..."
+                    className="outline-none"
+                    style={{
+                      width: "100%",
+                      fontSize: 13,
+                      color: "var(--color-text-secondary)",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      padding: "4px 0",
+                    }}
+                  />
+                </div>
+
+                {/* System prompt (collapsible) */}
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    onClick={() => togglePromptExpanded(recipe.id)}
+                    className="flex items-center"
+                    style={{
+                      gap: 6,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: "var(--color-text-muted)",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        transform: expandedPrompts.has(recipe.id) ? "rotate(90deg)" : "rotate(0deg)",
+                        transition: "transform 0.15s ease",
+                      }}
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                    System Prompt
+                  </button>
+                  {expandedPrompts.has(recipe.id) && (
+                    <textarea
+                      value={recipe.system_prompt}
+                      onChange={(e) => handleRecipeFieldChange(recipe.id, "system_prompt", e.target.value)}
+                      onBlur={() => handleRecipeSave(recipe.id)}
+                      placeholder="Enter the system prompt for this recipe..."
+                      className="outline-none"
+                      style={{
+                        width: "100%",
+                        minHeight: 120,
+                        marginTop: 8,
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        fontFamily: "inherit",
+                        resize: "vertical",
+                        backgroundColor: "var(--color-bg-primary)",
+                        border: "1.5px solid var(--color-border)",
+                        color: "var(--color-text-primary)",
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center" style={{ gap: 10 }}>
+                  {recipe.is_default !== 1 && (
+                    <button
+                      onClick={() => handleSetDefault(recipe.id)}
+                      className="transition-colors"
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        padding: "6px 14px",
+                        borderRadius: 10,
+                        border: "1px solid var(--color-border)",
+                        backgroundColor: "transparent",
+                        color: "var(--color-text-secondary)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Set as Default
+                    </button>
+                  )}
+                  {recipe.is_default !== 1 && (
+                    <>
+                      {confirmDeleteId === recipe.id ? (
+                        <div className="flex items-center" style={{ gap: 6 }}>
+                          <button
+                            onClick={() => handleRecipeDelete(recipe.id)}
+                            className="transition-colors"
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              padding: "6px 14px",
+                              borderRadius: 10,
+                              border: "none",
+                              backgroundColor: "var(--color-recording)",
+                              color: "#fff",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="transition-colors"
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              padding: "6px 14px",
+                              borderRadius: 10,
+                              border: "1px solid var(--color-border)",
+                              backgroundColor: "transparent",
+                              color: "var(--color-text-muted)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(recipe.id)}
+                          className="transition-colors"
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 500,
+                            padding: "6px 14px",
+                            borderRadius: 10,
+                            border: "1px solid var(--color-recording)",
+                            backgroundColor: "transparent",
+                            color: "var(--color-recording)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* New Recipe button */}
+            <button
+              onClick={handleRecipeCreate}
+              className="flex items-center transition-colors"
+              style={{
+                gap: 8,
+                padding: "12px 20px",
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: 500,
+                border: "1.5px dashed var(--color-border)",
+                backgroundColor: "transparent",
+                color: "var(--color-text-secondary)",
+                cursor: "pointer",
+                width: "100%",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New Recipe
+            </button>
           </Section>
 
           {/* ── Audio Device Section ────────────────────────────── */}

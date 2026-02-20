@@ -24,6 +24,7 @@ const phillnolaApi = {
     list: (): Promise<unknown[]> => ipcRenderer.invoke("get-recipes"),
     get: (id: string): Promise<unknown> => ipcRenderer.invoke("get-recipe", id),
     save: (data: unknown): Promise<unknown> => ipcRenderer.invoke("save-recipe", data),
+    delete: (id: string): Promise<boolean> => ipcRenderer.invoke("delete-recipe", id),
   },
   recording: {
     getDesktopSources: (): Promise<{ id: string; name: string; thumbnailDataUrl: string }[]> =>

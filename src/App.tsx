@@ -3,6 +3,7 @@ import { useSettings } from "./hooks/useSettings";
 import { useRecording } from "./hooks/useRecording";
 import Onboarding from "./screens/Onboarding";
 import Settings from "./screens/Settings";
+import RecipeEditor from "./screens/RecipeEditor";
 import Editor from "./components/Editor";
 import type { EditorHandle } from "./components/Editor";
 import RecordingBar from "./components/RecordingBar";
@@ -270,6 +271,7 @@ export default function App() {
   const [selectedMeeting, setSelectedMeeting] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showRecipeEditor, setShowRecipeEditor] = useState(false);
   const editorRef = useRef<EditorHandle>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -290,6 +292,9 @@ export default function App() {
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Collapsible sidebar
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Theme
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -400,12 +405,6 @@ export default function App() {
     setThemeMode(mode);
     applyTheme(mode);
   }, [settings.theme]);
-
-  // ── Sync edit title when meeting selection changes ───────────
-  useEffect(() => {
-    if (activeMeeting) setEditTitle(activeMeeting.title);
-    setConfirmDelete(false);
-  }, [selectedMeeting, activeMeeting?.title]);
 
   // ── Copy to clipboard ─────────────────────────────────────────
   const handleCopyToClipboard = useCallback(async () => {
@@ -586,6 +585,12 @@ export default function App() {
         e.preventDefault();
         toggleRecRef.current();
       }
+
+      // Cmd+\ — toggle sidebar
+      if (meta && e.key === "\\") {
+        e.preventDefault();
+        setSidebarCollapsed((prev) => !prev);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -594,6 +599,12 @@ export default function App() {
   const allMeetings = useMemo(() => meetingGroups.flatMap((g) => g.meetings), [meetingGroups]);
   const activeMeeting = allMeetings.find((m) => m.id === selectedMeeting);
   const hasAnyMeetings = allMeetings.length > 0;
+
+  // ── Sync edit title when meeting selection changes ───────────
+  useEffect(() => {
+    if (activeMeeting) setEditTitle(activeMeeting.title);
+    setConfirmDelete(false);
+  }, [selectedMeeting, activeMeeting?.title]);
 
   // Deduplicated search results (exclude meetings already shown via title filter)
   const filteredSearchResults = useMemo(() => {
@@ -646,15 +657,18 @@ export default function App() {
   /* ── Main App ───────────────────────────────────────────────────── */
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg-primary)" }}>
+    <div className="flex h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg-primary)", position: "relative" }}>
       {/* ── Sidebar ───────────────────────────────────────────── */}
       <aside
         className="sidebar flex flex-col select-none"
         style={{
-          width: 272,
-          minWidth: 272,
+          width: sidebarCollapsed ? 0 : 272,
+          minWidth: sidebarCollapsed ? 0 : 272,
           backgroundColor: "var(--color-bg-sidebar)",
-          borderRight: "1px solid var(--color-border)",
+          borderRight: sidebarCollapsed ? "none" : "1px solid var(--color-border)",
+          transition: "width 0.2s ease, min-width 0.2s ease",
+          overflow: "hidden",
+          position: "relative",
         }}
       >
         {/* macOS traffic light area + branding */}
@@ -842,12 +856,63 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Sidebar toggle button */}
+      <button
+        className="no-drag"
+        title={sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)"}
+        onClick={() => setSidebarCollapsed((prev) => !prev)}
+        style={{
+          position: "absolute",
+          left: sidebarCollapsed ? 0 : 272,
+          top: "50%",
+          transform: "translateY(-50%)",
+          zIndex: 20,
+          width: 20,
+          height: 48,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "var(--color-bg-secondary)",
+          border: "1px solid var(--color-border)",
+          borderLeft: sidebarCollapsed ? "1px solid var(--color-border)" : "none",
+          borderRadius: sidebarCollapsed ? "0 6px 6px 0" : "0 6px 6px 0",
+          cursor: "pointer",
+          color: "var(--color-text-muted)",
+          padding: 0,
+          transition: "left 0.2s ease",
+        }}
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)",
+            transition: "transform 0.2s ease",
+          }}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+
       {/* ── Main Content ──────────────────────────────────────── */}
       {showSettings ? (
         <Settings
           settings={settings}
           saveSetting={saveSetting}
           onClose={() => setShowSettings(false)}
+        />
+      ) : showRecipeEditor ? (
+        <RecipeEditor
+          onClose={() => {
+            setShowRecipeEditor(false);
+            loadRecipes();
+          }}
         />
       ) : (
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -906,7 +971,14 @@ export default function App() {
                   <div className="flex items-center no-drag shrink-0" style={{ gap: 12 }}>
                     <select
                       value={selectedRecipeId}
-                      onChange={(e) => setSelectedRecipeId(e.target.value)}
+                      onChange={(e) => {
+                        if (e.target.value === "__manage__") {
+                          setShowRecipeEditor(true);
+                          e.target.value = selectedRecipeId;
+                        } else {
+                          setSelectedRecipeId(e.target.value);
+                        }
+                      }}
                       className="outline-none cursor-pointer appearance-none"
                       style={{
                         fontSize: 13,
@@ -920,6 +992,8 @@ export default function App() {
                       {recipes.map((r) => (
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
+                      <option disabled style={{ fontSize: 0, lineHeight: 0 }}>---</option>
+                      <option value="__manage__">Manage Recipes...</option>
                     </select>
                     <div style={{ position: "relative" }}>
                       <button className="btn btn-ghost" style={{ padding: 10 }} title="Copy to clipboard" onClick={handleCopyToClipboard}>
@@ -958,6 +1032,69 @@ export default function App() {
                         <line x1="12" y1="2" x2="12" y2="15" />
                       </svg>
                     </button>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ padding: 10 }}
+                      title="Delete meeting"
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                    {confirmDelete && (
+                      <div
+                        className="flex items-center no-drag"
+                        style={{
+                          gap: 8,
+                          padding: "6px 12px",
+                          borderRadius: 8,
+                          backgroundColor: "var(--color-bg-secondary)",
+                          border: "1.5px solid var(--color-border)",
+                          fontSize: 12,
+                          color: "var(--color-text-secondary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <span>Delete this meeting?</span>
+                        <button
+                          className="btn no-drag"
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            borderRadius: 6,
+                            backgroundColor: "#dc2626",
+                            color: "#fff",
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                          onClick={async () => {
+                            await window.phillnola.meetings.delete(activeMeeting.id);
+                            setConfirmDelete(false);
+                            setSelectedMeeting("");
+                            await loadMeetings();
+                          }}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          className="btn btn-ghost no-drag"
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            borderRadius: 6,
+                            cursor: "pointer",
+                          }}
+                          onClick={() => setConfirmDelete(false)}
+                        >
+                          No
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

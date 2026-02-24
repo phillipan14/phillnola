@@ -2,6 +2,10 @@
 
 An open-source, local-first AI meeting notes app. No bot joins your call. No data leaves your machine. Your API keys. Your data.
 
+![macOS](https://img.shields.io/badge/macOS-only-blue) ![Electron 40](https://img.shields.io/badge/Electron-40-47848F?logo=electron) ![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react) ![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+
+<img src="assets/main-view.png" alt="Phillnola — meeting list view" width="800">
+
 ---
 
 ## Features

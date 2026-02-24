@@ -25,6 +25,7 @@ import {
   writeAudioChunk,
   stopCapture,
   getRecordingState,
+  cleanupOrphanedRecordings,
 } from "./audio-capture";
 import { transcribeChunks } from "./transcribe";
 import { structureNotes } from "./ai-structure";
@@ -376,6 +377,13 @@ function updateTrayMenu(): void {
 app.whenReady().then(() => {
   // Initialize the database before creating the window
   initDatabase();
+
+  // Clean up orphaned recording directories from crashed/cancelled sessions
+  const cleaned = cleanupOrphanedRecordings();
+  if (cleaned > 0) {
+    console.log(`Cleaned up ${cleaned} orphaned recording directories`);
+  }
+
   createWindow();
   createTray();
 });

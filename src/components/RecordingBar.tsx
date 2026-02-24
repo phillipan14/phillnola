@@ -113,11 +113,7 @@ export default function RecordingBar({ elapsed, audioLevel, onStop }: RecordingB
   return (
     <div
       className="recording-bar flex items-center justify-between"
-      style={{
-        padding: "14px 24px",
-        borderTop: "1px solid var(--color-border)",
-        backgroundColor: "var(--color-bg-secondary)",
-      }}
+      style={{ width: "100%" }}
     >
       {/* Left side: recording indicator + elapsed time */}
       <div className="flex items-center" style={{ gap: 14 }}>

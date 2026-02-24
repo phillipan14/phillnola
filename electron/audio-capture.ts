@@ -110,3 +110,28 @@ export function getRecordingState(): {
     chunkCount: chunkPaths.length,
   };
 }
+
+/**
+ * Clean up orphaned recording directories on startup.
+ * Removes directories that are empty or only contain stale chunk files
+ * (i.e. chunks that were never transcribed due to a crash or cancel).
+ */
+export function cleanupOrphanedRecordings(): number {
+  const recordingsRoot = path.join(app.getPath("home"), ".phillnola", "recordings");
+  if (!fs.existsSync(recordingsRoot)) return 0;
+
+  let cleaned = 0;
+  const dirs = fs.readdirSync(recordingsRoot);
+  for (const dir of dirs) {
+    const dirPath = path.join(recordingsRoot, dir);
+    if (!fs.statSync(dirPath).isDirectory()) continue;
+
+    const files = fs.readdirSync(dirPath);
+    if (files.length === 0) {
+      // Empty directory — leftover from a completed transcription
+      fs.rmdirSync(dirPath);
+      cleaned++;
+    }
+  }
+  return cleaned;
+}

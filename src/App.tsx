@@ -1,20 +1,22 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { useSettings } from "./hooks/useSettings";
 import { useRecording } from "./hooks/useRecording";
-import Onboarding from "./screens/Onboarding";
-import Settings from "./screens/Settings";
-import RecipeEditor from "./screens/RecipeEditor";
 import Editor from "./components/Editor";
 import type { EditorHandle } from "./components/Editor";
 import RecordingBar from "./components/RecordingBar";
 import ProcessingOverlay from "./components/ProcessingOverlay";
 import type { ProcessingStage } from "./components/ProcessingOverlay";
 
-/* ── Types ─────────────────────────────────────────────────────────── */
+const Onboarding = lazy(() => import("./screens/Onboarding"));
+const Settings = lazy(() => import("./screens/Settings"));
+const RecipeEditor = lazy(() => import("./screens/RecipeEditor"));
+
+/* -- Types ---------------------------------------------------------- */
 
 interface Meeting {
   id: string;
   title: string;
+  date: string; // ISO date string for DateBadge
   time: string;
   duration?: string;
   attendees: string[];
@@ -42,7 +44,7 @@ interface SearchResult {
 
 type ThemeMode = "system" | "light" | "dark";
 
-/* ── Helpers ───────────────────────────────────────────────────────── */
+/* -- Helpers -------------------------------------------------------- */
 
 function formatTimeShort(isoDate: string): string {
   const d = new Date(isoDate);
@@ -81,6 +83,7 @@ function groupMeetings(
     groups[group].push({
       id: m.id,
       title: m.title,
+      date: m.date,
       time: formatTimeShort(m.date),
       duration: durationStr,
       attendees,
@@ -104,6 +107,7 @@ function groupMeetings(
     groups[group].push({
       id: `cal-${e.id}`,
       title: e.title,
+      date: e.start,
       time: formatTimeShort(e.start),
       duration: durationStr,
       attendees: e.attendees,
@@ -118,7 +122,7 @@ function groupMeetings(
     .map((label) => ({ label, meetings: groups[label] }));
 }
 
-/* ── Subcomponents ─────────────────────────────────────────────────── */
+/* -- Subcomponents -------------------------------------------------- */
 
 function AvatarStack({ names }: { names: string[] }) {
   const colors = ["#c2742f", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b"];
@@ -179,7 +183,97 @@ function DancingBars({ playing = true, color = "var(--color-success)" }: { playi
   );
 }
 
-/* ── Markdown to HTML (lightweight) ────────────────────────────────── */
+/* -- DateBadge (calendar / upcoming meetings) ----------------------- */
+
+function DateBadge({ date }: { date: string }) {
+  const d = new Date(date);
+  const month = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  const day = d.getDate();
+  return (
+    <div className="date-badge" style={{
+      width: 40,
+      height: 44,
+      borderRadius: 8,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "var(--color-bg-secondary)",
+      border: "1px solid var(--color-border)",
+      flexShrink: 0,
+    }}>
+      <span style={{
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: "0.05em",
+        color: "var(--color-recording)",
+        lineHeight: 1,
+      }}>{month}</span>
+      <span style={{
+        fontSize: 18,
+        fontWeight: 700,
+        color: "var(--color-text-primary)",
+        lineHeight: 1.2,
+      }}>{day}</span>
+    </div>
+  );
+}
+
+/* -- MeetingAvatar (colored circle with initial) -------------------- */
+
+const AVATAR_COLORS = ["#c2742f", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+
+function MeetingAvatar({ name }: { name: string }) {
+  const colorIndex = name.charCodeAt(0) % AVATAR_COLORS.length;
+  return (
+    <div
+      className="meeting-avatar"
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: AVATAR_COLORS[colorIndex],
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: 600,
+        flexShrink: 0,
+      }}
+    >
+      {name[0]?.toUpperCase()}
+    </div>
+  );
+}
+
+/* -- DocumentIcon (for personal notes without attendees) ------------ */
+
+function DocumentIcon() {
+  return (
+    <div
+      className="meeting-doc-icon"
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "var(--color-bg-hover)",
+        color: "var(--color-text-muted)",
+        flexShrink: 0,
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+    </div>
+  );
+}
+
+/* -- Markdown to HTML (lightweight) --------------------------------- */
 
 function markdownToHtml(md: string): string {
   return md
@@ -201,7 +295,7 @@ function markdownToHtml(md: string): string {
     .replace(/\n{2,}/g, "\n");
 }
 
-/* ── HTML to Markdown (lightweight) ─────────────────────────────────── */
+/* -- HTML to Markdown (lightweight) --------------------------------- */
 
 function htmlToMarkdown(html: string): string {
   return html
@@ -240,7 +334,7 @@ function htmlToMarkdown(html: string): string {
     .trim();
 }
 
-/* ── Theme helpers ─────────────────────────────────────────────────── */
+/* -- Theme helpers -------------------------------------------------- */
 
 function applyTheme(mode: ThemeMode): void {
   const html = document.documentElement;
@@ -263,7 +357,31 @@ function themeIcon(mode: ThemeMode): string {
   return "monitor";
 }
 
-/* ── App ───────────────────────────────────────────────────────────── */
+/* -- Format date for detail view metadata pill ---------------------- */
+
+function formatDatePill(isoDate: string): string {
+  const d = new Date(isoDate);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const meetingDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  let dayLabel: string;
+  if (meetingDay.getTime() === today.getTime()) {
+    dayLabel = "Today";
+  } else {
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (meetingDay.getTime() === yesterday.getTime()) {
+      dayLabel = "Yesterday";
+    } else {
+      dayLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    }
+  }
+  const timeStr = formatTimeShort(isoDate);
+  return `${dayLabel}, ${timeStr}`;
+}
+
+/* -- App ------------------------------------------------------------ */
 
 export default function App() {
   const { settings, loading, saveSetting, isOnboarded } = useSettings();
@@ -293,8 +411,11 @@ export default function App() {
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Collapsible sidebar
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // View navigation (home = meeting list, detail = note editor)
+  const [view, setView] = useState<"home" | "detail">("home");
+
+  // Google Calendar connection state
+  const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
 
   // Theme
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -307,6 +428,9 @@ export default function App() {
   const [chunksCompleted, setChunksCompleted] = useState(0);
   const [chunksTotal, setChunksTotal] = useState(0);
   const processingCancelledRef = useRef(false);
+
+  // Error toast
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Load meetings from DB + Google Calendar
   const loadMeetings = useCallback(async () => {
@@ -321,7 +445,7 @@ export default function App() {
         calendarEvents = await window.phillnola.calendar.getEvents(7);
       }
     } catch {
-      // Calendar not configured — that's fine
+      // Calendar not configured -- that's fine
     }
 
     const groups = groupMeetings(dbMeetings, calendarEvents);
@@ -344,13 +468,23 @@ export default function App() {
     }
   }, [selectedRecipeId]);
 
-  // Initial data load
+  // Initial data load + check calendar connection
   useEffect(() => {
     if (isOnboarded) {
       loadMeetings();
       loadRecipes();
+      window.phillnola.calendar.isConnected().then(setCalendarConnected).catch(() => setCalendarConnected(false));
     }
   }, [isOnboarded, loadMeetings, loadRecipes]);
+
+  // Refresh meetings every 5 minutes (picks up new calendar events)
+  useEffect(() => {
+    if (!isOnboarded) return;
+    const interval = setInterval(() => {
+      loadMeetings();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isOnboarded, loadMeetings]);
 
   // Listen for transcription progress events from main process
   useEffect(() => {
@@ -365,6 +499,7 @@ export default function App() {
   useEffect(() => {
     const unsubNavigate = window.phillnola.on("navigate-meeting", (meetingId) => {
       setSelectedMeeting(meetingId as string);
+      setView("detail");
       setShowSettings(false);
     });
     const unsubNew = window.phillnola.on("new-meeting", () => {
@@ -373,7 +508,7 @@ export default function App() {
     return () => { unsubNavigate(); unsubNew(); };
   }, []);
 
-  // ── Search notes content when query changes ───────────────────
+  // -- Search notes content when query changes ----------------------
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -398,7 +533,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // ── Initialize and sync theme ─────────────────────────────────
+  // -- Initialize and sync theme ------------------------------------
   useEffect(() => {
     const saved = settings.theme as ThemeMode | undefined;
     const mode = saved || "system";
@@ -406,7 +541,7 @@ export default function App() {
     applyTheme(mode);
   }, [settings.theme]);
 
-  // ── Copy to clipboard ─────────────────────────────────────────
+  // -- Copy to clipboard -------------------------------------------
   const handleCopyToClipboard = useCallback(async () => {
     if (!editorRef.current) return;
     const html = editorRef.current.getHTML();
@@ -416,7 +551,7 @@ export default function App() {
     setTimeout(() => setShowCopied(false), 1500);
   }, []);
 
-  // ── Export as markdown file ───────────────────────────────────
+  // -- Export as markdown file --------------------------------------
   const handleExport = useCallback((title: string) => {
     if (!editorRef.current) return;
     const html = editorRef.current.getHTML();
@@ -433,7 +568,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   }, []);
 
-  // ── Theme toggle ──────────────────────────────────────────────
+  // -- Theme toggle -------------------------------------------------
   const handleThemeToggle = useCallback(() => {
     setThemeMode((prev) => {
       const next = cycleTheme(prev);
@@ -453,8 +588,41 @@ export default function App() {
     const created = meeting as { id: string };
     await loadMeetings();
     setSelectedMeeting(created.id);
+    setView("detail");
     setShowSettings(false);
   }, [loadMeetings]);
+
+  // Navigate to a meeting
+  const handleSelectMeeting = useCallback((id: string) => {
+    setSelectedMeeting(id);
+    setView("detail");
+    setShowSettings(false);
+    setConfirmDelete(false);
+  }, []);
+
+  // Go back to home
+  const handleBackToHome = useCallback(() => {
+    setView("home");
+    setSearchQuery("");
+  }, []);
+
+  // Delete a meeting
+  const handleDeleteMeeting = useCallback(async () => {
+    if (!selectedMeeting) return;
+    await window.phillnola.meetings.delete(selectedMeeting);
+    setSelectedMeeting("");
+    setConfirmDelete(false);
+    setView("home");
+    await loadMeetings();
+  }, [selectedMeeting, loadMeetings]);
+
+  // Save edited title
+  const handleTitleSave = useCallback(async () => {
+    const trimmed = editTitle.trim();
+    if (!trimmed || !activeMeeting || trimmed === activeMeeting.title) return;
+    await window.phillnola.meetings.update(activeMeeting.id, { title: trimmed });
+    await loadMeetings();
+  }, [editTitle, loadMeetings]);
 
   /**
    * End-to-end flow: Stop Recording -> Transcribe -> Structure -> Insert
@@ -490,22 +658,7 @@ export default function App() {
         return;
       }
 
-      // 3. Insert transcript into editor so user can see it immediately
-      if (editorRef.current) {
-        const transcriptParagraphs = transcript
-          .split("\n")
-          .filter((line) => line.trim())
-          .map((line) => `<p>${line}</p>`)
-          .join("");
-        const transcriptHtml = `
-          <hr />
-          <h2>Transcript</h2>
-          ${transcriptParagraphs}
-        `;
-        editorRef.current.insertAIOutput(transcriptHtml);
-      }
-
-      // 4. Structure notes with AI
+      // 3. Structure notes with AI first (appears on top)
       setProcessingStage("structuring");
       const userNotes = editorRef.current?.getPlainText() || "";
 
@@ -518,14 +671,33 @@ export default function App() {
 
       if (processingCancelledRef.current) return;
 
-      // 5. Insert structured output into editor below the transcript
-      if (structured && editorRef.current) {
-        const aiHtml = `
+      // 4. Insert AI structured notes on top, then transcript below
+      if (editorRef.current) {
+        const transcriptParagraphs = transcript
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => `<p>${line}</p>`)
+          .join("");
+
+        let outputHtml = "";
+
+        // AI-structured notes first (top)
+        if (structured) {
+          outputHtml += `
+            <hr />
+            <h2>AI-Structured Notes</h2>
+            ${markdownToHtml(structured)}
+          `;
+        }
+
+        // Transcript at the bottom
+        outputHtml += `
           <hr />
-          <h2>AI-Structured Notes</h2>
-          ${markdownToHtml(structured)}
+          <h2>Transcript</h2>
+          ${transcriptParagraphs}
         `;
-        editorRef.current.insertAIOutput(aiHtml);
+
+        editorRef.current.insertAIOutput(outputHtml);
       }
 
       // 5. Show done state briefly
@@ -536,7 +708,9 @@ export default function App() {
     } catch (err) {
       console.error("Processing failed:", err);
       setIsProcessing(false);
-      // Could add error toast here
+      const msg = err instanceof Error ? err.message : "Processing failed";
+      setErrorMessage(msg);
+      setTimeout(() => setErrorMessage(null), 6000);
     }
   }, [selectedMeeting, stopRecording]);
 
@@ -557,7 +731,7 @@ export default function App() {
     await handleStopAndProcess();
   }, [handleStopAndProcess]);
 
-  // ── Keyboard shortcuts ────────────────────────────────────────
+  // -- Keyboard shortcuts -------------------------------------------
   // Keep refs to avoid stale closures in the global listener
   const newMeetingRef = useRef(handleNewMeeting);
   newMeetingRef.current = handleNewMeeting;
@@ -568,28 +742,22 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
 
-      // Cmd+K — focus search
+      // Cmd+K -- focus search
       if (meta && e.key === "k") {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
 
-      // Cmd+N — new meeting
+      // Cmd+N -- new meeting
       if (meta && e.key === "n" && !e.shiftKey) {
         e.preventDefault();
         newMeetingRef.current();
       }
 
-      // Cmd+Shift+R — toggle recording
+      // Cmd+Shift+R -- toggle recording
       if (meta && e.shiftKey && (e.key === "R" || e.key === "r")) {
         e.preventDefault();
         toggleRecRef.current();
-      }
-
-      // Cmd+\ — toggle sidebar
-      if (meta && e.key === "\\") {
-        e.preventDefault();
-        setSidebarCollapsed((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handler);
@@ -600,11 +768,18 @@ export default function App() {
   const activeMeeting = allMeetings.find((m) => m.id === selectedMeeting);
   const hasAnyMeetings = allMeetings.length > 0;
 
-  // ── Sync edit title when meeting selection changes ───────────
+  // -- Sync edit title when meeting selection changes ---------------
   useEffect(() => {
     if (activeMeeting) setEditTitle(activeMeeting.title);
     setConfirmDelete(false);
   }, [selectedMeeting, activeMeeting?.title]);
+
+  // -- Redirect detail view if no active meeting -------------------
+  useEffect(() => {
+    if (view === "detail" && !activeMeeting && selectedMeeting === "") {
+      setView("home");
+    }
+  }, [view, activeMeeting, selectedMeeting]);
 
   // Deduplicated search results (exclude meetings already shown via title filter)
   const filteredSearchResults = useMemo(() => {
@@ -617,7 +792,7 @@ export default function App() {
     return searchResults.filter((r) => !titleMatchIds.has(r.meeting_id));
   }, [searchQuery, searchResults, allMeetings]);
 
-  /* ── Loading State ──────────────────────────────────────────────── */
+  /* -- Loading State ------------------------------------------------ */
 
   if (loading) {
     return (
@@ -640,596 +815,921 @@ export default function App() {
     );
   }
 
-  /* ── Onboarding ─────────────────────────────────────────────────── */
+  /* -- Onboarding --------------------------------------------------- */
 
   if (!isOnboarded) {
     return (
-      <Onboarding
-        onComplete={() => {
-          // Force a re-render by reloading settings
-          window.location.reload();
-        }}
-        saveSetting={saveSetting}
-      />
+      <Suspense fallback={<div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--color-bg-primary)", color: "var(--color-text-primary)" }}>Loading...</div>}>
+        <Onboarding
+          onComplete={() => {
+            // Force a re-render by reloading settings
+            window.location.reload();
+          }}
+          saveSetting={saveSetting}
+        />
+      </Suspense>
     );
   }
 
-  /* ── Main App ───────────────────────────────────────────────────── */
+  /* -- Settings Screen (full-page centered) ------------------------- */
+
+  if (showSettings) {
+    return (
+      <div className="h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg-primary)", position: "relative" }}>
+        <div className="drag-region" style={{ height: 38 }} />
+        {/* Top bar with back button */}
+        <div
+          className="flex items-center"
+          style={{
+            padding: "0 24px",
+            height: 48,
+          }}
+        >
+          <button
+            onClick={() => { setShowSettings(false); setView("home"); }}
+            className="back-btn no-drag flex items-center"
+            style={{
+              gap: 6,
+              fontSize: 14,
+              fontWeight: 500,
+              color: "var(--color-text-muted)",
+              backgroundColor: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: "6px 10px",
+              borderRadius: 8,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Home
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden" style={{ height: "calc(100vh - 86px)" }}>
+          <Suspense fallback={null}>
+            <Settings
+              settings={settings}
+              saveSetting={saveSetting}
+              onClose={() => { setShowSettings(false); setView("home"); }}
+            />
+          </Suspense>
+        </div>
+      </div>
+    );
+  }
+
+  /* -- Recipe Editor Screen ----------------------------------------- */
+
+  if (showRecipeEditor) {
+    return (
+      <div className="h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg-primary)", position: "relative" }}>
+        <div className="drag-region" style={{ height: 38 }} />
+        <div className="flex-1 overflow-hidden" style={{ height: "calc(100vh - 38px)" }}>
+          <Suspense fallback={null}>
+            <RecipeEditor
+              onClose={() => {
+                setShowRecipeEditor(false);
+                loadRecipes();
+              }}
+            />
+          </Suspense>
+        </div>
+      </div>
+    );
+  }
+
+  /* -- Main App (single column centered) ----------------------------- */
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg-primary)", position: "relative" }}>
-      {/* ── Sidebar ───────────────────────────────────────────── */}
-      <aside
-        className="sidebar flex flex-col select-none"
-        style={{
-          width: sidebarCollapsed ? 0 : 272,
-          minWidth: sidebarCollapsed ? 0 : 272,
-          backgroundColor: "var(--color-bg-sidebar)",
-          borderRight: sidebarCollapsed ? "none" : "1px solid var(--color-border)",
-          transition: "width 0.2s ease, min-width 0.2s ease",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
-        {/* macOS traffic light area + branding */}
-        <div className="drag-region flex items-end" style={{ paddingTop: 18, paddingLeft: 78, paddingRight: 20, paddingBottom: 20 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-text-primary)" }}>
-            Phillnola
-          </span>
+    <div className="h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg-primary)", position: "relative", display: "flex", flexDirection: "column" }}>
+      {/* Error toast */}
+      {errorMessage && (
+        <div
+          style={{
+            position: "fixed",
+            top: 52,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            backgroundColor: "#dc2626",
+            color: "#fff",
+            padding: "10px 20px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            cursor: "pointer",
+            maxWidth: 400,
+          }}
+          onClick={() => setErrorMessage(null)}
+        >
+          {errorMessage}
         </div>
+      )}
 
-        {/* Search */}
-        <div style={{ padding: "0 14px 16px 14px" }}>
+      {/* macOS drag region */}
+      <div className="drag-region" style={{ height: 38, flexShrink: 0 }} />
+
+      {/* ============================================================ */}
+      {/* HOME VIEW                                                     */}
+      {/* ============================================================ */}
+      {view === "home" && (
+        <>
+          {/* Top bar: traffic lights area + quick-note + theme + gear */}
           <div
-            className="search-box flex items-center"
-            style={{ gap: 12, padding: "10px 16px", borderRadius: 12, backgroundColor: "var(--color-bg-hover)" }}
+            className="flex items-center justify-between no-drag"
+            style={{
+              padding: "0 24px 0 80px",
+              height: 48,
+              flexShrink: 0,
+            }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke="var(--color-text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search meetings..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="no-drag bg-transparent border-none outline-none flex-1"
-              style={{ color: "var(--color-text-primary)", fontSize: 14 }}
-            />
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded-md"
-              style={{ color: "var(--color-text-muted)", backgroundColor: "var(--color-bg-active)" }}
-            >&#8984;K</kbd>
-          </div>
-        </div>
+            {/* Left spacer for traffic lights */}
+            <div />
 
-        {/* Meeting list */}
-        <div className="flex-1 overflow-y-auto" style={{ padding: "0 12px" }}>
-          {/* Search Results from note content */}
-          {filteredSearchResults.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div
-                style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", padding: "16px 12px 8px 12px", color: "var(--color-accent)" }}
+            {/* Right actions */}
+            <div className="flex items-center" style={{ gap: 8 }}>
+              {/* + Quick note */}
+              <button
+                onClick={handleNewMeeting}
+                className="btn btn-ghost no-drag flex items-center"
+                style={{ gap: 6, fontSize: 13, fontWeight: 500, padding: "8px 14px", borderRadius: 8 }}
               >
-                Search Results
-              </div>
-              {filteredSearchResults.map((result) => (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Quick note
+              </button>
+
+              {/* Theme toggle */}
+              <button
+                className="btn btn-ghost no-drag"
+                style={{ padding: 8 }}
+                title={`Theme: ${themeMode}`}
+                onClick={handleThemeToggle}
+              >
+                {themeIcon(themeMode) === "sun" && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                )}
+                {themeIcon(themeMode) === "moon" && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                )}
+                {themeIcon(themeMode) === "monitor" && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Settings gear */}
+              <button
+                className="btn btn-ghost no-drag"
+                title="Settings"
+                onClick={() => setShowSettings(true)}
+                style={{ padding: 8 }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable meeting list */}
+          <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 80 }}>
+            <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 24px" }}>
+
+              {/* Calendar connection prompt */}
+              {calendarConnected === false && (
                 <button
-                  key={`search-${result.meeting_id}`}
-                  className={`meeting-item meeting-slide-in no-drag w-full text-left ${selectedMeeting === result.meeting_id ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedMeeting(result.meeting_id);
-                    setShowSettings(false);
+                  onClick={() => setShowSettings(true)}
+                  className="no-drag w-full text-left"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    padding: "16px 18px",
+                    marginTop: 8,
+                    marginBottom: 16,
+                    borderRadius: 12,
+                    border: "1.5px dashed var(--color-border)",
+                    backgroundColor: "transparent",
+                    cursor: "pointer",
                   }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-bg-hover)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                 >
-                  <div className="font-mono-timestamp shrink-0" style={{ color: "var(--color-text-muted)", width: 52 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                      stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" />
-                      <path d="m21 21-4.35-4.35" />
+                  <div
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      backgroundColor: "var(--color-accent-subtle)",
+                      color: "var(--color-accent)",
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[13px] font-medium truncate block" style={{ color: "var(--color-text-primary)" }}>
-                      {result.meeting_title}
-                    </span>
-                    <div className="text-[11px] mt-0.5 truncate" style={{ color: "var(--color-text-muted)" }}>
-                      Matched in notes
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)" }}>
+                      Connect Google Calendar
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--color-text-muted)", marginTop: 2 }}>
+                      See upcoming meetings automatically
                     </div>
                   </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 </button>
-              ))}
-            </div>
-          )}
+              )}
 
-          {meetingGroups.map((group) => (
-            <div key={group.label} style={{ marginBottom: 8 }}>
-              <div
-                style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", padding: "16px 12px 8px 12px", color: "var(--color-text-muted)" }}
-              >
-                {group.label}
-              </div>
-              {group.meetings
-                .filter((m) => !searchQuery || m.title.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((meeting) => (
-                <button
-                  key={meeting.id}
-                  className={`meeting-item meeting-slide-in no-drag w-full text-left ${selectedMeeting === meeting.id ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedMeeting(meeting.id);
-                    setShowSettings(false);
-                  }}
-                >
-                  <div className="font-mono-timestamp shrink-0" style={{ color: "var(--color-text-muted)", width: 54 }}>
-                    {meeting.time.replace(" AM", "a").replace(" PM", "p")}
+              {/* Search Results section */}
+              {filteredSearchResults.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    padding: "16px 0 8px 0",
+                    color: "var(--color-accent)",
+                  }}>
+                    Search Results
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {meeting.isLive && <span className="recording-dot shrink-0" style={{ width: 6, height: 6 }} />}
-                      {meeting.isCalendar && (
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                          stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                          <line x1="16" y1="2" x2="16" y2="6" />
-                          <line x1="8" y1="2" x2="8" y2="6" />
-                          <line x1="3" y1="10" x2="21" y2="10" />
-                        </svg>
-                      )}
-                      <span className="text-[13.5px] font-medium truncate block leading-snug" style={{ color: "var(--color-text-primary)" }}>
-                        {meeting.title}
-                      </span>
-                    </div>
-                    <div className="text-[12px] mt-1 truncate" style={{ color: "var(--color-text-muted)" }}>
-                      {meeting.attendees.join(", ")}{meeting.duration ? ` \u00b7 ${meeting.duration}` : ""}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
+                  {filteredSearchResults.map((result) => (
+                    <button
+                      key={`search-${result.meeting_id}`}
+                      className="no-drag w-full text-left"
+                      onClick={() => handleSelectMeeting(result.meeting_id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        padding: "12px 12px",
+                        borderRadius: 10,
+                        border: "none",
+                        backgroundColor: "transparent",
+                        cursor: "pointer",
+                        width: "100%",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-bg-hover)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                    >
+                      <DocumentIcon />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {result.meeting_title}
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--color-text-muted)", marginTop: 2 }}>
+                          Matched in notes
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-        {/* Bottom bar */}
-        <div className="flex items-center justify-between" style={{ padding: "14px 14px", borderTop: "1px solid var(--color-border)" }}>
-          <button onClick={handleNewMeeting} className="btn btn-ghost no-drag" style={{ fontSize: 14, gap: 8, padding: "10px 14px" }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New
-          </button>
-          <div className="flex items-center" style={{ gap: 8 }}>
-            {/* Theme toggle */}
-            <button
-              className="btn btn-ghost no-drag"
-              style={{ padding: 10 }}
-              title={`Theme: ${themeMode}`}
-              onClick={handleThemeToggle}
-            >
-              {themeIcon(themeMode) === "sun" && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
+              {/* Meeting groups */}
+              {meetingGroups.map((group, groupIdx) => {
+                const isComingUp = groupIdx === 0 && (group.label === "Today" || group.label === "Upcoming");
+                const filteredMeetings = group.meetings.filter(
+                  (m) => !searchQuery || m.title.toLowerCase().includes(searchQuery.toLowerCase()),
+                );
+                if (filteredMeetings.length === 0) return null;
+
+                return (
+                  <div key={group.label} style={{ marginBottom: 24 }}>
+                    {/* Section header */}
+                    {isComingUp ? (
+                      <div className="flex items-center justify-between" style={{ padding: "24px 0 16px 0" }}>
+                        <span style={{
+                          fontFamily: "Georgia, 'Times New Roman', serif",
+                          fontSize: 28,
+                          fontWeight: 400,
+                          color: "var(--color-text-primary)",
+                        }}>
+                          Coming up
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        padding: "24px 0 12px 0",
+                        color: "var(--color-text-muted)",
+                      }}>
+                        {group.label}
+                      </div>
+                    )}
+
+                    {/* Meeting rows */}
+                    {filteredMeetings.map((meeting) => (
+                      <button
+                        key={meeting.id}
+                        className="no-drag w-full text-left"
+                        onClick={() => handleSelectMeeting(meeting.id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 14,
+                          padding: "12px 12px",
+                          borderRadius: 10,
+                          border: "none",
+                          backgroundColor: "transparent",
+                          cursor: "pointer",
+                          width: "100%",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-bg-hover)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                      >
+                        {/* Left: avatar or date badge */}
+                        {isComingUp ? (
+                          <DateBadge date={meeting.date} />
+                        ) : meeting.attendees.length > 0 ? (
+                          <MeetingAvatar name={meeting.attendees[0]} />
+                        ) : (
+                          <DocumentIcon />
+                        )}
+
+                        {/* Middle: title + subtitle */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="flex items-center" style={{ gap: 6 }}>
+                            {meeting.isLive && <span className="recording-dot shrink-0" style={{ width: 6, height: 6 }} />}
+                            {meeting.isCalendar && (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                                stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                <line x1="16" y1="2" x2="16" y2="6" />
+                                <line x1="8" y1="2" x2="8" y2="6" />
+                                <line x1="3" y1="10" x2="21" y2="10" />
+                              </svg>
+                            )}
+                            <span style={{
+                              fontSize: 15,
+                              fontWeight: 500,
+                              color: "var(--color-text-primary)",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              display: "block",
+                            }}>
+                              {meeting.title}
+                            </span>
+                          </div>
+                          <div style={{
+                            fontSize: 13,
+                            color: "var(--color-text-muted)",
+                            marginTop: 2,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}>
+                            {isComingUp
+                              ? `${group.label === "Today" ? "Today" : ""} ${meeting.time}`
+                              : (meeting.attendees.length > 0 ? meeting.attendees.join(", ") : "Me")
+                            }
+                          </div>
+                        </div>
+
+                        {/* Right: time */}
+                        {!isComingUp && (
+                          <span style={{
+                            fontSize: 13,
+                            color: "var(--color-text-muted)",
+                            flexShrink: 0,
+                            whiteSpace: "nowrap",
+                          }}>
+                            {meeting.time}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+
+              {/* Empty state */}
+              {!hasAnyMeetings && (
+                <div style={{ textAlign: "center", paddingTop: 120 }}>
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 72,
+                      height: 72,
+                      margin: "0 auto 32px auto",
+                      borderRadius: 16,
+                      backgroundColor: "var(--color-accent-subtle)",
+                      color: "var(--color-accent)",
+                    }}
+                  >
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                  </div>
+                  <p style={{ fontSize: 18, fontWeight: 600, color: "var(--color-text-primary)" }}>
+                    No meetings yet
+                  </p>
+                  <p style={{ fontSize: 15, marginTop: 12, marginBottom: 32, lineHeight: 1.6, color: "var(--color-text-muted)" }}>
+                    Create your first meeting to start taking notes
+                  </p>
+                  <button
+                    onClick={handleNewMeeting}
+                    className="btn btn-primary no-drag"
+                    style={{ fontSize: 14, gap: 10, padding: "12px 24px" }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Create your first meeting
+                  </button>
+                </div>
               )}
-              {themeIcon(themeMode) === "moon" && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              )}
-              {themeIcon(themeMode) === "monitor" && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" />
-                </svg>
-              )}
-            </button>
-            {/* Settings */}
-            <button
-              className="btn btn-ghost no-drag"
-              title="Settings"
-              onClick={() => setShowSettings(!showSettings)}
+            </div>
+          </div>
+
+          {/* Floating search bar at bottom */}
+          <div
+            style={{
+              position: "fixed",
+              bottom: 20,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "100%",
+              maxWidth: 520,
+              padding: "0 24px",
+              zIndex: 30,
+            }}
+          >
+            <div
+              className="flex items-center"
               style={{
-                padding: 10,
-                backgroundColor: showSettings ? "var(--color-bg-active)" : undefined,
+                gap: 12,
+                padding: "12px 18px",
+                borderRadius: 16,
+                backgroundColor: "var(--color-bg-elevated)",
+                border: "1px solid var(--color-border)",
+                boxShadow: "0 4px 20px var(--color-shadow), 0 1px 4px var(--color-shadow)",
               }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                <circle cx="12" cy="12" r="3" />
+                stroke="var(--color-text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
               </svg>
-            </button>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search meetings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="no-drag bg-transparent border-none outline-none flex-1"
+                style={{ color: "var(--color-text-primary)", fontSize: 14 }}
+              />
+              <kbd
+                className="text-[10px] px-1.5 py-0.5 rounded-md"
+                style={{ color: "var(--color-text-muted)", backgroundColor: "var(--color-bg-active)" }}
+              >&#8984;K</kbd>
+            </div>
           </div>
-        </div>
-      </aside>
+        </>
+      )}
 
-      {/* Sidebar toggle button */}
-      <button
-        className="no-drag"
-        title={sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)"}
-        onClick={() => setSidebarCollapsed((prev) => !prev)}
-        style={{
-          position: "absolute",
-          left: sidebarCollapsed ? 0 : 272,
-          top: "50%",
-          transform: "translateY(-50%)",
-          zIndex: 20,
-          width: 20,
-          height: 48,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--color-bg-secondary)",
-          border: "1px solid var(--color-border)",
-          borderLeft: sidebarCollapsed ? "1px solid var(--color-border)" : "none",
-          borderRadius: sidebarCollapsed ? "0 6px 6px 0" : "0 6px 6px 0",
-          cursor: "pointer",
-          color: "var(--color-text-muted)",
-          padding: 0,
-          transition: "left 0.2s ease",
-        }}
-      >
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            transform: sidebarCollapsed ? "rotate(0deg)" : "rotate(180deg)",
-            transition: "transform 0.2s ease",
-          }}
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
+      {/* ============================================================ */}
+      {/* DETAIL VIEW                                                   */}
+      {/* ============================================================ */}
+      {view === "detail" && activeMeeting && (
+        <>
+          {/* Top bar: back + right actions */}
+          <div
+            className="flex items-center justify-between no-drag"
+            style={{
+              padding: "0 24px",
+              height: 48,
+              flexShrink: 0,
+            }}
+          >
+            {/* Left: back button */}
+            <button
+              onClick={handleBackToHome}
+              className="back-btn no-drag flex items-center"
+              style={{
+                gap: 6,
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--color-text-muted)",
+                backgroundColor: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "6px 10px",
+                borderRadius: 8,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              Home
+            </button>
 
-      {/* ── Main Content ──────────────────────────────────────── */}
-      {showSettings ? (
-        <Settings
-          settings={settings}
-          saveSetting={saveSetting}
-          onClose={() => setShowSettings(false)}
-        />
-      ) : showRecipeEditor ? (
-        <RecipeEditor
-          onClose={() => {
-            setShowRecipeEditor(false);
-            loadRecipes();
-          }}
-        />
-      ) : (
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {/* Titlebar drag */}
-          <div className="drag-region" style={{ height: 38 }} />
+            {/* Right actions */}
+            <div className="flex items-center" style={{ gap: 8 }}>
+              {/* Recipe selector */}
+              <select
+                value={selectedRecipeId}
+                onChange={(e) => {
+                  if (e.target.value === "__manage__") {
+                    setShowRecipeEditor(true);
+                    e.target.value = selectedRecipeId;
+                  } else {
+                    setSelectedRecipeId(e.target.value);
+                  }
+                }}
+                className="outline-none cursor-pointer appearance-none no-drag"
+                style={{
+                  fontSize: 13,
+                  padding: "8px 30px 8px 14px",
+                  borderRadius: 8,
+                  backgroundColor: "var(--color-bg-secondary)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
+                {recipes.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+                <option disabled style={{ fontSize: 0, lineHeight: 0 }}>---</option>
+                <option value="__manage__">Manage Recipes...</option>
+              </select>
 
-          {activeMeeting ? (
-            <>
-              {/* Meeting Header */}
-              <div style={{ padding: "0 48px 28px 48px", borderBottom: "1px solid var(--color-border-light)" }}>
-                <div className="flex items-start justify-between" style={{ gap: 24 }}>
-                  <div className="min-w-0">
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onFocus={() => setEditingTitle(true)}
-                      onBlur={async () => {
-                        setEditingTitle(false);
-                        const trimmed = editTitle.trim();
-                        if (trimmed && trimmed !== activeMeeting.title) {
-                          await window.phillnola.meetings.update(activeMeeting.id, { title: trimmed });
-                          await loadMeetings();
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      }}
-                      className="no-drag w-full"
-                      style={{
-                        fontSize: 26,
-                        fontWeight: 600,
-                        lineHeight: 1.2,
-                        color: "var(--color-text-primary)",
-                        backgroundColor: "transparent",
-                        border: "none",
-                        outline: "none",
-                        padding: 0,
-                        margin: 0,
-                        fontFamily: "inherit",
-                      }}
-                    />
-                    <div className="flex items-center" style={{ gap: 16, marginTop: 14 }}>
-                      <span style={{ fontSize: 13.5, color: "var(--color-text-muted)" }}>
-                        {activeMeeting.time}{activeMeeting.duration ? ` \u00b7 ${activeMeeting.duration}` : ""}
-                      </span>
-                      <div className="flex items-center" style={{ gap: 12 }}>
-                        <AvatarStack names={activeMeeting.attendees} />
-                        <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-                          {activeMeeting.attendees.join(", ")}
-                        </span>
-                      </div>
-                    </div>
+              {/* Copy button */}
+              <div style={{ position: "relative" }}>
+                <button className="btn btn-ghost no-drag" style={{ padding: 8 }} title="Copy to clipboard" onClick={handleCopyToClipboard}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                </button>
+                {showCopied && (
+                  <div
+                    className="copied-tooltip"
+                    style={{
+                      position: "absolute",
+                      top: -28,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      padding: "3px 8px",
+                      borderRadius: 4,
+                      fontSize: 11,
+                      whiteSpace: "nowrap",
+                      backgroundColor: "var(--color-bg-active)",
+                      color: "var(--color-text-primary)",
+                      boxShadow: "0 1px 4px var(--color-shadow)",
+                    }}
+                  >
+                    Copied!
                   </div>
-
-                  <div className="flex items-center no-drag shrink-0" style={{ gap: 12 }}>
-                    <select
-                      value={selectedRecipeId}
-                      onChange={(e) => {
-                        if (e.target.value === "__manage__") {
-                          setShowRecipeEditor(true);
-                          e.target.value = selectedRecipeId;
-                        } else {
-                          setSelectedRecipeId(e.target.value);
-                        }
-                      }}
-                      className="outline-none cursor-pointer appearance-none"
-                      style={{
-                        fontSize: 13,
-                        padding: "10px 36px 10px 16px",
-                        borderRadius: 12,
-                        backgroundColor: "var(--color-bg-secondary)",
-                        border: "1.5px solid var(--color-border)",
-                        color: "var(--color-text-secondary)",
-                      }}
-                    >
-                      {recipes.map((r) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                      <option disabled style={{ fontSize: 0, lineHeight: 0 }}>---</option>
-                      <option value="__manage__">Manage Recipes...</option>
-                    </select>
-                    <div style={{ position: "relative" }}>
-                      <button className="btn btn-ghost" style={{ padding: 10 }} title="Copy to clipboard" onClick={handleCopyToClipboard}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                      </button>
-                      {showCopied && (
-                        <div
-                          className="copied-tooltip"
-                          style={{
-                            position: "absolute",
-                            top: -28,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            padding: "3px 8px",
-                            borderRadius: 4,
-                            fontSize: 11,
-                            whiteSpace: "nowrap",
-                            backgroundColor: "var(--color-bg-active)",
-                            color: "var(--color-text-primary)",
-                            boxShadow: "0 1px 4px var(--color-shadow)",
-                          }}
-                        >
-                          Copied!
-                        </div>
-                      )}
-                    </div>
-                    <button className="btn btn-ghost" style={{ padding: 10 }} title="Export" onClick={() => handleExport(activeMeeting.title)}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                        <polyline points="16 6 12 2 8 6" />
-                        <line x1="12" y1="2" x2="12" y2="15" />
-                      </svg>
-                    </button>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: 10 }}
-                      title="Delete meeting"
-                      onClick={() => setConfirmDelete(true)}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      </svg>
-                    </button>
-                    {confirmDelete && (
-                      <div
-                        className="flex items-center no-drag"
-                        style={{
-                          gap: 8,
-                          padding: "6px 12px",
-                          borderRadius: 8,
-                          backgroundColor: "var(--color-bg-secondary)",
-                          border: "1.5px solid var(--color-border)",
-                          fontSize: 12,
-                          color: "var(--color-text-secondary)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <span>Delete this meeting?</span>
-                        <button
-                          className="btn no-drag"
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            borderRadius: 6,
-                            backgroundColor: "#dc2626",
-                            color: "#fff",
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                          onClick={async () => {
-                            await window.phillnola.meetings.delete(activeMeeting.id);
-                            setConfirmDelete(false);
-                            setSelectedMeeting("");
-                            await loadMeetings();
-                          }}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          className="btn btn-ghost no-drag"
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            borderRadius: 6,
-                            cursor: "pointer",
-                          }}
-                          onClick={() => setConfirmDelete(false)}
-                        >
-                          No
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes Area — TipTap Editor */}
-              <div className="flex-1 overflow-y-auto" style={{ position: "relative" }}>
-                <div style={{ padding: "32px 48px", maxWidth: 720 }}>
-                  <Editor
-                    ref={editorRef}
-                    meetingId={activeMeeting.id}
-                  />
-                </div>
-
-                {/* Processing Overlay */}
-                {isProcessing && (
-                  <ProcessingOverlay
-                    stage={processingStage}
-                    chunksCompleted={chunksCompleted}
-                    chunksTotal={chunksTotal}
-                    onCancel={handleCancelProcessing}
-                  />
                 )}
               </div>
 
-              {/* Recording Bar */}
-              {isRecording && (
+              {/* Export button */}
+              <button className="btn btn-ghost no-drag" style={{ padding: 8 }} title="Export" onClick={() => handleExport(activeMeeting.title)}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              </button>
+
+              {/* Delete button */}
+              <button
+                className="btn btn-ghost no-drag"
+                style={{ padding: 8 }}
+                title="Delete meeting"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Delete confirmation bar */}
+          {confirmDelete && (
+            <div
+              className="flex items-center justify-center"
+              style={{
+                padding: "10px 24px",
+                backgroundColor: "var(--color-bg-secondary)",
+                borderBottom: "1px solid var(--color-border)",
+              }}
+            >
+              <div className="flex items-center" style={{ gap: 12, fontSize: 13, color: "var(--color-text-secondary)" }}>
+                <span>Delete this meeting?</span>
+                <button
+                  className="btn no-drag"
+                  style={{
+                    padding: "4px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    backgroundColor: "#dc2626",
+                    color: "#fff",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  onClick={handleDeleteMeeting}
+                >
+                  Yes, delete
+                </button>
+                <button
+                  className="btn btn-ghost no-drag"
+                  style={{
+                    padding: "4px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Scrollable content area */}
+          <div className="flex-1 overflow-y-auto" style={{ position: "relative", paddingBottom: 80 }}>
+            <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 24px 0 24px" }}>
+              {/* Editable title */}
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onFocus={() => setEditingTitle(true)}
+                onBlur={async () => {
+                  setEditingTitle(false);
+                  const trimmed = editTitle.trim();
+                  if (trimmed && trimmed !== activeMeeting.title) {
+                    await window.phillnola.meetings.update(activeMeeting.id, { title: trimmed });
+                    await loadMeetings();
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+                placeholder="New note"
+                className="no-drag w-full"
+                style={{
+                  fontFamily: "Georgia, 'Times New Roman', serif",
+                  fontSize: 30,
+                  fontWeight: 400,
+                  lineHeight: 1.2,
+                  color: "var(--color-text-primary)",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  outline: "none",
+                  padding: 0,
+                  margin: 0,
+                }}
+              />
+
+              {/* Metadata pills */}
+              <div className="flex items-center" style={{ gap: 12, marginTop: 16, marginBottom: 28 }}>
+                {/* Date pill */}
+                <div className="flex items-center" style={{
+                  gap: 6,
+                  padding: "5px 12px",
+                  borderRadius: 8,
+                  backgroundColor: "var(--color-bg-secondary)",
+                  fontSize: 13,
+                  color: "var(--color-text-muted)",
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {formatDatePill(activeMeeting.date)}
+                </div>
+
+                {/* Attendees pill */}
+                {activeMeeting.attendees.length > 0 && (
+                  <div className="flex items-center" style={{
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    backgroundColor: "var(--color-bg-secondary)",
+                    fontSize: 13,
+                    color: "var(--color-text-muted)",
+                  }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    {activeMeeting.attendees.join(", ")}
+                  </div>
+                )}
+
+                {/* Duration pill */}
+                {activeMeeting.duration && (
+                  <div className="flex items-center" style={{
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    backgroundColor: "var(--color-bg-secondary)",
+                    fontSize: 13,
+                    color: "var(--color-text-muted)",
+                  }}>
+                    {activeMeeting.duration}
+                  </div>
+                )}
+              </div>
+
+              {/* TipTap Editor */}
+              <div style={{ minHeight: 300 }}>
+                <Editor
+                  ref={editorRef}
+                  meetingId={activeMeeting.id}
+                />
+              </div>
+
+              {/* Spacer for floating bar */}
+              <div style={{ height: 80 }} />
+            </div>
+
+            {/* Processing Overlay */}
+            {isProcessing && (
+              <ProcessingOverlay
+                stage={processingStage}
+                chunksCompleted={chunksCompleted}
+                chunksTotal={chunksTotal}
+                onCancel={handleCancelProcessing}
+              />
+            )}
+          </div>
+
+          {/* Recording Error */}
+          {recordingError && (
+            <div
+              style={{ padding: "12px 24px", fontSize: 13, color: "var(--color-recording)", backgroundColor: "var(--color-recording-bg)" }}
+            >
+              {recordingError}
+            </div>
+          )}
+
+          {/* Floating bottom bar */}
+          {isRecording ? (
+            /* Recording bar — wider pill */
+            <div
+              style={{
+                position: "fixed",
+                bottom: 20,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "100%",
+                maxWidth: 480,
+                padding: "0 24px",
+                zIndex: 30,
+              }}
+            >
+              <div
+                className="flex items-center"
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 16,
+                  backgroundColor: "var(--color-bg-elevated)",
+                  border: "1px solid var(--color-border)",
+                  boxShadow: "0 4px 20px var(--color-shadow), 0 1px 4px var(--color-shadow)",
+                }}
+              >
                 <RecordingBar
                   elapsed={elapsed}
                   audioLevel={audioLevel}
                   onStop={handleStopRecording}
                 />
-              )}
-
-              {/* Recording Error */}
-              {recordingError && (
-                <div
-                  style={{ padding: "12px 24px", fontSize: 13, color: "var(--color-recording)", backgroundColor: "var(--color-recording-bg)" }}
-                >
-                  {recordingError}
-                </div>
-              )}
-
-              {/* Start Recording button when not recording */}
-              {!isRecording && activeMeeting && (
-                <div
-                  className="flex items-center justify-center"
-                  style={{
-                    padding: "16px 24px",
-                    borderTop: "1px solid var(--color-border)",
-                    backgroundColor: "var(--color-bg-secondary)",
-                  }}
-                >
-                  <button
-                    onClick={handleToggleRecording}
-                    className="no-drag flex items-center transition-all"
-                    style={{
-                      gap: 12,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      padding: "14px 28px",
-                      borderRadius: 12,
-                      backgroundColor: "var(--color-recording-bg)",
-                      color: "var(--color-recording)",
-                      border: "1.5px solid transparent",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => { (e.target as HTMLElement).style.borderColor = "var(--color-recording)"; }}
-                    onMouseLeave={(e) => { (e.target as HTMLElement).style.borderColor = "transparent"; }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    </svg>
-                    Start Recording
-                  </button>
-                </div>
-              )}
-            </>
+              </div>
+            </div>
           ) : (
-            /* Empty State */
-            <div className="flex-1 flex items-center justify-center">
-              <div style={{ textAlign: "center", maxWidth: 340 }}>
-                <div
-                  className="flex items-center justify-center"
+            /* Generate notes + Start Recording — side by side in floating pill */
+            <div
+              style={{
+                position: "fixed",
+                bottom: 20,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 30,
+              }}
+            >
+              <div
+                className="flex items-center"
+                style={{
+                  gap: 8,
+                  padding: "8px 10px",
+                  borderRadius: 16,
+                  backgroundColor: "var(--color-bg-elevated)",
+                  border: "1px solid var(--color-border)",
+                  boxShadow: "0 4px 20px var(--color-shadow), 0 1px 4px var(--color-shadow)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {/* Generate notes button */}
+                <button
+                  onClick={handleStopAndProcess}
+                  className="no-drag flex items-center"
                   style={{
-                    width: 72,
-                    height: 72,
-                    margin: "0 auto 32px auto",
-                    borderRadius: 16,
-                    backgroundColor: "var(--color-accent-subtle)",
-                    color: "var(--color-accent)",
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: "10px 20px",
+                    borderRadius: 12,
+                    backgroundColor: "var(--color-accent)",
+                    color: "#fff",
+                    border: "none",
+                    cursor: "pointer",
                   }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-accent-hover)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-accent)"; }}
                 >
-                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  Generate notes
+                </button>
+
+                {/* Start Recording button */}
+                <button
+                  onClick={handleToggleRecording}
+                  className="no-drag flex items-center"
+                  style={{
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    padding: "10px 20px",
+                    borderRadius: 12,
+                    backgroundColor: "transparent",
+                    color: "var(--color-recording)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-bg-hover)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
                   </svg>
-                </div>
-                {hasAnyMeetings ? (
-                  <>
-                    <p style={{ fontSize: 18, fontWeight: 600, color: "var(--color-text-primary)" }}>
-                      Select a meeting
-                    </p>
-                    <p style={{ fontSize: 15, marginTop: 12, lineHeight: 1.6, color: "var(--color-text-muted)" }}>
-                      Choose from the sidebar or create a new one to start taking notes
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p style={{ fontSize: 18, fontWeight: 600, color: "var(--color-text-primary)" }}>
-                      No meetings yet
-                    </p>
-                    <p style={{ fontSize: 15, marginTop: 12, marginBottom: 32, lineHeight: 1.6, color: "var(--color-text-muted)" }}>
-                      Create your first meeting to start taking notes
-                    </p>
-                    <button
-                      onClick={handleNewMeeting}
-                      className="btn btn-primary no-drag"
-                      style={{ fontSize: 14, gap: 10, padding: "12px 24px" }}
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 5v14M5 12h14" />
-                      </svg>
-                      Create your first meeting
-                    </button>
-                  </>
-                )}
+                  Start Recording
+                </button>
               </div>
             </div>
           )}
-        </main>
+        </>
+      )}
+
+      {/* Detail view with no active meeting -- redirect handled by effect above */}
+      {view === "detail" && !activeMeeting && (
+        <div className="flex-1 flex items-center justify-center">
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontSize: 15, color: "var(--color-text-muted)" }}>
+              Meeting not found.
+            </p>
+            <button
+              onClick={handleBackToHome}
+              className="btn btn-ghost no-drag"
+              style={{ marginTop: 16, fontSize: 14 }}
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

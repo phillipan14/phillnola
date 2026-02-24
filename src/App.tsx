@@ -22,6 +22,9 @@ interface Meeting {
   attendees: string[];
   isLive?: boolean;
   isCalendar?: boolean;
+  meetLink?: string;
+  calendarEventId?: string;
+  durationSeconds?: number;
 }
 
 interface MeetingGroup {
@@ -56,8 +59,8 @@ function formatTimeShort(isoDate: string): string {
 }
 
 function groupMeetings(
-  dbMeetings: { id: string; title: string; date: string; attendees: string; duration_seconds: number }[],
-  calendarEvents: { id: string; title: string; start: string; end: string; attendees: string[] }[],
+  dbMeetings: { id: string; title: string; date: string; attendees: string; duration_seconds: number; calendar_event_id: string | null }[],
+  calendarEvents: { id: string; title: string; start: string; end: string; attendees: string[]; meetLink?: string }[],
 ): MeetingGroup[] {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -65,6 +68,12 @@ function groupMeetings(
   yesterday.setDate(yesterday.getDate() - 1);
 
   const groups: Record<string, Meeting[]> = { Today: [], Yesterday: [], "This Week": [], Upcoming: [], Older: [] };
+
+  // Build meetLink map from calendar events (calendar_event_id → meetLink)
+  const meetLinkMap = new Map<string, string>();
+  for (const e of calendarEvents) {
+    if (e.meetLink) meetLinkMap.set(e.id, e.meetLink);
+  }
 
   // Add database meetings
   for (const m of dbMeetings) {
@@ -87,11 +96,13 @@ function groupMeetings(
       time: formatTimeShort(m.date),
       duration: durationStr,
       attendees,
+      meetLink: m.calendar_event_id ? meetLinkMap.get(m.calendar_event_id) : undefined,
+      calendarEventId: m.calendar_event_id || undefined,
     });
   }
 
   // Add calendar events (upcoming only, not already in DB)
-  const dbCalIds = new Set(dbMeetings.map((m) => m.id));
+  const dbCalIds = new Set(dbMeetings.map((m) => m.calendar_event_id).filter(Boolean));
   for (const e of calendarEvents) {
     if (dbCalIds.has(e.id)) continue;
     const d = new Date(e.start);
@@ -112,6 +123,9 @@ function groupMeetings(
       duration: durationStr,
       attendees: e.attendees,
       isCalendar: true,
+      meetLink: e.meetLink,
+      calendarEventId: e.id,
+      durationSeconds: durationMin > 0 ? durationMin * 60 : undefined,
     });
   }
 
@@ -435,10 +449,10 @@ export default function App() {
   // Load meetings from DB + Google Calendar
   const loadMeetings = useCallback(async () => {
     const dbMeetings = (await window.phillnola.meetings.list()) as {
-      id: string; title: string; date: string; attendees: string; duration_seconds: number;
+      id: string; title: string; date: string; attendees: string; duration_seconds: number; calendar_event_id: string | null;
     }[];
 
-    let calendarEvents: { id: string; title: string; start: string; end: string; attendees: string[] }[] = [];
+    let calendarEvents: { id: string; title: string; start: string; end: string; attendees: string[]; meetLink?: string }[] = [];
     try {
       const connected = await window.phillnola.calendar.isConnected();
       if (connected) {
@@ -592,13 +606,44 @@ export default function App() {
     setShowSettings(false);
   }, [loadMeetings]);
 
-  // Navigate to a meeting
-  const handleSelectMeeting = useCallback((id: string) => {
+  // Guard against double-click creating duplicate DB meetings from calendar events
+  const creatingFromCalRef = useRef<Set<string>>(new Set());
+
+  // Navigate to a meeting (auto-creates DB record for calendar events)
+  const handleSelectMeeting = useCallback(async (id: string) => {
+    if (id.startsWith("cal-")) {
+      // Prevent duplicate creation on double-click
+      if (creatingFromCalRef.current.has(id)) return;
+      creatingFromCalRef.current.add(id);
+
+      try {
+        const calMeeting = meetingGroups.flatMap((g) => g.meetings).find((m) => m.id === id);
+        if (calMeeting) {
+          const created = (await window.phillnola.meetings.create({
+            title: calMeeting.title,
+            date: calMeeting.date,
+            duration_seconds: calMeeting.durationSeconds || 0,
+            calendar_event_id: calMeeting.calendarEventId,
+            attendees: calMeeting.attendees,
+          })) as { id: string };
+          await loadMeetings();
+          setSelectedMeeting(created.id);
+          setView("detail");
+          setShowSettings(false);
+          setConfirmDelete(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to create meeting from calendar event:", err);
+      } finally {
+        creatingFromCalRef.current.delete(id);
+      }
+    }
     setSelectedMeeting(id);
     setView("detail");
     setShowSettings(false);
     setConfirmDelete(false);
-  }, []);
+  }, [meetingGroups, loadMeetings]);
 
   // Go back to home
   const handleBackToHome = useCallback(() => {
@@ -1570,6 +1615,31 @@ export default function App() {
                   }}>
                     {activeMeeting.duration}
                   </div>
+                )}
+
+                {/* Join meeting button */}
+                {activeMeeting.meetLink && (
+                  <button
+                    onClick={() => activeMeeting.meetLink && window.phillnola.openExternal(activeMeeting.meetLink)}
+                    className="flex items-center"
+                    style={{
+                      gap: 6,
+                      padding: "5px 12px",
+                      borderRadius: 8,
+                      backgroundColor: "#1a73e8",
+                      fontSize: 13,
+                      color: "#fff",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="23 7 16 12 23 17 23 7" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                    Join
+                  </button>
                 )}
               </div>
 

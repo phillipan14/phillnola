@@ -63,6 +63,7 @@ declare global {
         isConnected: () => Promise<boolean>;
         disconnect: () => Promise<{ success: boolean }>;
       };
+      openExternal: (url: string) => Promise<void>;
       on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
     };
   }

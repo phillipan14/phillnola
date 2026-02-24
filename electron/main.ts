@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, session, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, desktopCapturer, ipcMain, session, shell, Tray, Menu, nativeImage } from "electron";
 import path from "path";
 import {
   initDatabase,
@@ -282,6 +282,10 @@ ipcMain.handle("google-is-connected", async () => {
 ipcMain.handle("google-disconnect", async () => {
   disconnectGoogle();
   return { success: true };
+});
+
+ipcMain.handle("open-external", async (_event, url: string) => {
+  await shell.openExternal(url);
 });
 
 // ── System Tray ──────────────────────────────────────────────────────────────

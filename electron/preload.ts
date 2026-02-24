@@ -76,6 +76,7 @@ const phillnolaApi = {
     isConnected: (): Promise<boolean> => ipcRenderer.invoke("google-is-connected"),
     disconnect: (): Promise<{ success: boolean }> => ipcRenderer.invoke("google-disconnect"),
   },
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke("open-external", url),
   // Events from main process (tray, etc.)
   on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
